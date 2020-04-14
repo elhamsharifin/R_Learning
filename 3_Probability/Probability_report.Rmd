@@ -106,6 +106,7 @@ To determine the probability of multiple events occurring, we use the multiplica
 ### Equations
 The multiplication rule for independent events is:
 Pr(A and B and C)=Pr(A)×Pr(B)×Pr(C)
+This is equivalent to drawing a bead with replacement!
 
 The multiplication rule for dependent events considers the conditional probability of both events occurring:
 Pr(A and B)=Pr(A)×Pr(B∣A)
@@ -273,15 +274,15 @@ mean(results)  #calculate the proportion or probability of duplicated birthdays
 ```
 
 ## Key points: sapply
-Some functions automatically apply element-wise to vectors, such as sqrt() and *.
-However, other functions do not operate element-wise by default. This includes functions we define ourselves.
+Some functions automatically apply element-wise to vectors, such as sqrt() and *. However, other functions do not operate element-wise by default. This includes functions we define ourselves.
+
 The function sapply(x, f) allows any other function f to be applied element-wise to the vector x.
 
 The probability of an event happening is 1 minus the probability of that event not happening:
 Pr(event)=1−Pr(no event)
+
 We can compute the probability of shared birthdays mathematically:
- 
-Pr(shared birthdays)=1−Pr(no shared birthdays)=1−(1×364/365×364/365× ...× (365-n+1)/365)
+ Pr(shared birthdays)=1−Pr(no shared birthdays)=1−(1×364/365×364/365× ...× (365-n+1)/365)
 
 ```{r}
 # function of calculation of probability of same birth days across n people
@@ -314,4 +315,248 @@ plot(n,prob)  #n the size of the group
 ```
 #### Code: Computing birthday problem probabilities with sapply
 if we calculate the probability of peoples do not have the same birthday:
+Pr(person 1 has unique bday) = 1
+Pr(person 2 has a uique birthday|person 1 has a unique bday) = 364/365
+Pr(person 3 has a unique bday | person 1 , 2 have unique bdays)=363/365
+...
+(365/365)*(364/365)*(363/365)*...*((365-(n-1))/365)
+now we can write a function for that.
+```{r}
+# exact formulation for bday problem
+exact_prob <- function(n){
+  prob_unique <- seq(365,365-n+1)/365
+  1 - prod(prob_unique)
+}
+
+# applying function element-wise to vector of n values
+eprob <- sapply(n, exact_prob)
+
+# plotting Monte Carlo results and exact probabilities on same graph
+plot(n, prob)    # plot Monte Carlo results
+lines(n, eprob)   # add line for exact prob
+# as seen, monto-carlo simulation can predict the probability very good.
+```
+
+## Key points: How Many Monte Carlo Experiments are Enough?
+
+The larger the number of Monte Carlo replicates B, the more accurate the estimate.
+
+Determining the appropriate size for B can require advanced statistics.
+
+One practical approach is to try many sizes for B and look for sizes that provide stable estimates.
+
+The following code runs Monte Carlo simulations to estimate the probability of shared birthdays using several B values and plots the results. When B is large enough that the estimated probability stays stable, then we have selected a useful value of B.
+
+```{r}
+# Code: Estimating a practical value of B
+B <- 10^seq(1,5,length=100)
+
+compute_bday <- function(B,n=22){
+  same_day <- replicate(B,{
+    bday <- sample(1:365,n,replace = TRUE)
+    any(duplicated(bday))
+  })
+  mean(same_day)
+}
+
+prob <- sapply(B, compute_bday) # apply compute_bday to many values of B
+plot(log10(B), prob, type = "l")    # plot a line graph of estimates 
+```
+### Exercise (independent)
+suppose we have a box cotaining 3 cyan, 5 magenta, and 7 yellow balls. suppose we draw 5 balls with replacement, and all have been yellow. what is the probability that the sixth draw become yellow too?
+```{r}
+# Sampling with replacement
+yellow <- 7
+magenta <- 5
+cyan <-3
+
+prob_yellow <- yellow/(yellow+magenta+cyan)
+
+prob_7_yellow <- prob_yellow #The probability of drawing a yellow ball is not dependent of previous draws when balls are replaced after each draw. If two events A and B are independent,Pr(A∣B)=Pr(A)
+
+prob_7_yellow
+```
+### Exercise (Rolling a die)
+suppose we have a die with six sides:
+what is the probability of not-seeing a six in one roll? what is the probability of not-seeing a six for all of the six rolls?
+```{r}
+prob_no6 <- 5/6
+prob_no6_6roll <- prob_no6*prob_no6*prob_no6*prob_no6*prob_no6*prob_no6
+prob_no6_6roll
+```
+### Exercise (winning between two teams)
+Suppose there are two teams Esteghlas and Piroozi and Esteghlala is more stronger and has 1 60% of wininng in front of piroozi. what is the probability that piroozi win at least one game? (Remember that the piroozi must win one of the first four games, or the series will be over!)
+```{r}
+# at least win 1 game = 1-(pirrozi win 0 game)
+#pirrozi win 0 game = esteghala winn all of 4 games
+win_esteghlal_4 <- 0.6*0.6*0.6*0.6
+win_pirrozi_1 <- 1- win_esteghlal_4
+win_pirrozi_1
+```
+###Exercise: Monte Carlo simulation for Esteghlal winning a game:
+Create a Monte Carlo simulation to confirm your answer to the previous problem by estimating how frequently the Celtics win at least 1 of 4 games (assume: B <- 10000).
+```{r}
+simulated_games <- sample (c("win","lose"),4,replace = TRUE, prob = c(0.4,0.6)) #these are simulated games for piroozi that the probabilities are not equal
+simulated_games
+
+B <- 10000
+perspolis_win <- replicate(B,{
+  simulated_games <- sample (c("win","lose"),4,replace = TRUE, prob = c(0.4,0.6))
+  any(simulated_games==c("win"))
+})
+mean(perspolis_win)
+```
+## Key points: The Addition Rule
+The addition rule states that the probability of event A or event B
+happening is the probability of event A plus the probability of event B minus the probability of both events A and B happening together.
+Pr(A or B)=Pr(A)+Pr(B)−Pr(A and B)
+Note that (A or B) is equivalent to (A|B)
+
+### example:
+Example: The addition rule for a natural 21 in blackjack.
+We apply the addition rule where A = drawing an ace then a facecard and  B = drawing a facecard then an ace. Note that in this case, both events A and B cannot happen at the same time, so Pr(A and B)=0.
+Pr(ace_then_facecard) = (4/52)*(16/51)
+Pr(facecard_then_ace) = (16/51)*(4/52)
+Pr(ace_then_facecard | facecard_then_ace)= (4/52) * (16/51) + (16/51) *(4/52)
+
+## Key points: The Monty Hall Problem
+Monte Carlo simulations can be used to simulate random outcomes, which makes them useful when exploring ambiguous or less intuitive problems like the Monty Hall problem.
+
+In the Monty Hall problem, contestants choose one of three doors that may contain a prize. Then, one of the doors that was not chosen by the contestant and does not contain a prize is revealed. The contestant can then choose whether to stick with the original choice or switch to the remaining unopened door.
+
+Although it may seem intuitively like the contestant has a 1 in 2 chance of winning regardless of whether they stick or switch, Monte Carlo simulations demonstrate that the actual probability of winning is 1 in 3 with the stick strategy and 2 in 3 with the switch strategy.
+
+### Code: Monte Carlo simulation of stick strategy
+```{r}
+doors <- as.character(1:3)
+doors
+prize <- sample(c("car","goat","goat")) # puts prizes in random order
+prize
+prize_door <- doors[prize=="car"] # note which door has prize
+prize_door
+my_pick <- sample(doors,1) # note which door is chosen
+my_pick
+show <- sample(doors[!doors %in% c(my_pick,prize_door)],1) # open door with no prize that isn't chosen
+show
+stick <- my_pick
+stick == prize_door
+
+
+#Monto_carlo simulation
+B <- 10000
+stick <- replicate(B, {
+	doors <- as.character(1:3)
+	prize <- sample(c("car","goat","goat"))    # puts prizes in random order
+	prize_door <- doors[prize == "car"]    # note which door has prize
+	my_pick  <- sample(doors, 1)    # note which door is chosen
+	show <- sample(doors[!doors %in% c(my_pick, prize_door)],1)    # open door with no prize that isn't chosen
+	stick <- my_pick    # stick with original door
+	stick == prize_door    # test whether the original door has the prize
+})
+mean(stick)    # probability of choosing prize door when sticking
+```
+### Code: Monte Carlo simulation of switch strategy
+```{r}
+doors <- as.character(1:3)
+doors
+prize <- sample(c("car","goat","goat")) # puts prizes in random order
+prize
+prize_door <- doors[prize=="car"] # note which door has prize
+prize_door
+my_pick <- sample(doors,1) # note which door is chosen
+my_pick
+show <- sample(doors[!doors %in% c(my_pick,prize_door)],1) # open door with no prize that isn't chosen
+show
+switch <- doors[!doors%in%c(my_pick,show)]  ## switch to the door that wasn't chosen first or opened
+switch
+switch == prize_door
+
+# Monto_carlo simulation
+B <- 10000
+switch <- replicate(B, {
+	doors <- as.character(1:3)
+	prize <- sample(c("car","goat","goat"))    # puts prizes in random order
+	prize_door <- doors[prize == "car"]    # note which door has prize
+	my_pick  <- sample(doors, 1)    # note which door is chosen first
+	show <- sample(doors[!doors %in% c(my_pick, prize_door)], 1)    # open door with no prize that isn't chosen
+	switch <- doors[!doors%in%c(my_pick, show)]    # switch to the door that wasn't chosen first or opened
+	switch == prize_door    # test whether the switched door has the prize
+})
+mean(switch)    # probability of choosing prize door when switching
+```
+### Exercise: The Cavs and the Warriors
+Two teams of Cavs and the Warriors are playing a seven game championship series. The first to win four games wins the series. The teams are equally good, so they each have a 50-50 chance of winning each game. 
+If the Cavs lose the first game, what is the probability that they win the series.
+
+```{r}
+## Monto Carlo simulation
+simulated_games <- sample (c("win","lose"),6,replace = TRUE, prob = c(0.5,0.5)) 
+simulated_games
+
+B <- 10000
+set.seed(1) #if we want that our answer become identical with edx
+Warriors_win <- replicate(B,{
+  simulated_games <- sample (c("win","lose"),6,replace = TRUE, prob = c(0.5,0.5))
+  })
+win <- colSums(Warriors_win=="win")>=4
+mean(win)
+
+#if we define win and lose as (0,1)
+#sum(simulated_games)>=4  inside the Monoto caerlo before })
+```
+Another method:
+```{r}
+# Assign a variable 'n' as the number of remaining games.
+n <- 6
+n
+# Assign a variable `outcomes` as a vector of possible game outcomes, where 0 indicates a loss and 1 indicates a win for the Cavs.
+outcomes <- c(0:1)
+outcomes
+# Assign a variable `l` to a list of all possible outcomes in all remaining games. Use the `rep` function on `list(outcomes)` to create list of length `n`.
+l <- rep(list(outcomes),n)
+l
+# Create a data frame named 'possibilities' that contains all combinations of possible outcomes for the remaining games.
+possibilities <- expand.grid(l)
+possibilities
+
+# Create a vector named 'results' that indicates whether each row in the data frame 'possibilities' contains enough wins for the Cavs to win the series.
+
+results <- rowSums(possibilities==1)>=4
+results
+
+# Calculate the proportion of 'results' in which the Cavs win the series. Print the outcome to the console.
+mean(results)
+```
+### Exercise: 
+Suppose two teams of A, and B are playing a sevn-series game. Team A is better than B and has a p>0.5chance of winning each game.compute the probability of wininng for the p <- seq(0.5,0.95,0.025)
+
+```{r}
+p <- seq(0.5,0.95,0.025)  #probability that team A wins
+## Given a value 'p', the probability of winning the series for the underdog team B can be computed with the following function based on a Monte Carlo simulation:
+prob_win <- function(p){
+  results <- replicate(B,{
+    b_win <- sample(c(0,1),7,replace = TRUE, prob=c(1-p,p)) #1-p:0 losing #p:1 wining
+    sum(b_win) >= 4
+  })
+  mean(results)
+}
+Pr <- sapply(p,prob_win) ## Apply the 'prob_win' function across the vector of probabilities that team A will win to determine the probability that team B will win. Call this object 'Pr'.
+plot(p,Pr)
+```
+part 2 of wining A team or B team:
+if team A wins at the probability of 0.75. compute the probability for different series of game (1 game, 2 games , ..., 25 games)
+```{r}
+B <- 10000
+compute_win <- function(n,p=0.75){
+  results <- replicate(B,{
+    b_win <- sample(c(1,0),n,replace=TRUE,prob=c(1-p,p))
+    sum(b_win)>=(n+1)/2
+  })
+  mean(results)
+}
+
+n <- seq(1,25,2)
+Pr <- sapply(n,compute_win)
+plot(n,Pr)
+```
 
