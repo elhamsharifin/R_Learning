@@ -304,7 +304,7 @@ sqrt(x) #sqrt applys on every elements of the vector x
 y <- 1:10
 x*y  #it multiply each elements from x on y
 
-compute_prob(n)    # does not iterate over the vector n without sapply
+compute_bday(n)    # does not iterate over the vector n without sapply
 
 x <- 1:10
 sapply(x,sqrt) #this is equivalent with sqrt(x)
@@ -558,5 +558,212 @@ compute_win <- function(n,p=0.75){
 n <- seq(1,25,2)
 Pr <- sapply(n,compute_win)
 plot(n,Pr)
+```
+## Assessment:Olympic Running
+in the final of 200m, theer are 8 people who fight for the three medals in which order is matter. in Olympic 2012, three of eight runner were from Jamaica and other fiver runners from other countries. all of three medal were won by Jamaica . 
+
+```{r}
+library(gtools)
+library(tidyverse)
+
+# different ways the three medals can be distributed accross runners:
+medals <- permutations(8,3)
+nrow(medals)
+
+# different ways that three medals can be distributed among three Jamaican runners:
+Jamaica_medals <- permutations(3,3)
+nrow(Jamaica_medals )
+
+# probability that all three medals are won by Jamaica n runners:
+Pr_Jamaica  <- nrow(Jamaica_medals)/nrow(medals)
+Pr_Jamaica 
+
+# Monto carlo 
+runners <- c("Jamaica", "Jamaica", "Jamaica", "USA", "Ecuador", "Netherlands", "France", "South Africa")
+B <- 10000
+set.seed(1)
+jam_win <- replicate(B,{
+  simulated_games <- sample(runners,3) #be careful: replace=false order is matter
+  all(simulated_games=="Jamaica")
+   })
+mean(jam_win)
+```
+## Assessment:Restaurant management
+A restaurane manager is going to advertise that his lunch menue has differnt foods for each days of year (365 diffrent foods).
+each meal at the restaurans includes 1 entree, 2 sides, and 1 drink.
+He currently offers a choice of 1 entree from a list of 6 options, a choice of 2 different sides from a list of 6 options, and a choice of 1 drink from a list of 2 options.
+
+```{r}
+### possible meal combination at his restaurant:
+entree6_1 <- combinations(6,1,v=c("E1","E2","E3","E4","E5","E6"))
+side6_2 <- combinations(6,2,v=c("s1","s2","s3","s4","s5","s6"))
+drink2_1 <- combinations(2,1,v=c("d1","d2"))
+nrow(entree6_1)*nrow(side6_2)*nrow(drink2_1)
+
+### possible meal options if the manager add one aditional drink:
+drink3_1 <- combinations(3,1,v=c("d1","d2","d3"))
+nrow(entree6_1)*nrow(side6_2)*nrow(drink3_1)
+
+### the manager decided to not add any thing else to his menue but get his golas with choosing more options. 
+# all options of choosing from 6 entrees, 3 drinks, and 3 sides. 
+side6_3 <- combinations(6,3,v=c("s1","s2","s3","s4","s5","s6"))
+nrow(entree6_1)*nrow(side6_3)*nrow(drink3_1)
+
+### manager is concerns that customers do not want three sides. so he want to increase the number of entree options. he wanna know how many entree he has to add to entrees to meet his goals. Write a function that takes a number of entree choices and returns the number of meal combinations possible given that number of entree options, 3 drink choices, and a selection of 2 sides from 6 options.
+
+entree_options <- function(n){
+  nrow(combinations(n,1))*nrow(combinations(6,2))*nrow(combinations(3,1))
+}
+
+# apply the function to entree option counts ranging from 1 to 12.
+entree_option_12 <- sapply(1:12,entree_options)
+
+# minimum number of meals to get his goals (more than 365 meal options)
+data.frame(entrees=1:12,entree_option_12) %>%
+  filter(entree_option_12>=365) %>%
+  min(.$entrees)
+
+### the manager cannot afford increasing the number of entrees and he thinks it is better to increase the number of sides. how many sides he has to offer to meet the at least 365 meals. 
+#Write a function that takes a number of side choices and returns the number of meal combinations possible given 6 entree choices, 3 drink choices, and a selection of 2 sides from the specified number of side choices. 
+
+side_options <- function(s){
+  nrow(combinations(6,1))*nrow(combinations(s,2))*nrow(combinations(3,1))
+}
+
+# apply the function to side option counts ranging from 2 to 12.
+side_option_12 <- sapply(2:12,side_options)
+
+# minimum number of meals to get his goals (more than 365 meal options)
+data.frame(sides=2:12,side_option_12) %>%
+  filter(side_option_12>=365) %>%
+  min(.$sides)
+```
+## Assessment: cancer and alcohol/tobacco use
+The dataset contains data from a study in France that compare people with esophageal cancer (ncases) to poeple without cancer (ncontrols) that are carefully matched on a variety of demographic and medical conditions. The study compares alcohol (alcgp) and tabacco (tobgp) intakes in grams per day among cases and controls grouped by age range (agegp). each group is shown in one row.
+```{r}
+library(tidyverse)
+head(esoph)
+
+### number of groups in the study
+nrow(esoph)
+
+### how many cases and controls are there?
+all_cases <- sum(esoph$ncases)
+all_cases
+
+all_controls <- sum(esoph$ncontrols)
+all_controls
+
+### the probaility of a subject in the highest alcohol consumption group is a cancer case?
+min(esoph$alcgp) #which group is max 
+
+ esoph %>%
+   filter(alcgp=="120+") %>%
+   summarize(ncases = sum(ncases),ncontrols = sum(ncontrols)) %>%
+   mutate(p_cases=ncases/(ncases+ncontrols),p_controls=ncontrols/(ncases+ncontrols))
+ 
+ ### the probaility of a subject in the lowest alcohol consumption group is a cancer case?
+ min(esoph$alcgp) #which group is min
+ 
+  esoph %>%
+   filter(alcgp=="0-39g/day") %>%
+   summarize(ncases = sum(ncases),ncontrols = sum(ncontrols)) %>%
+   mutate(p_cases=ncases/(ncases+ncontrols),p_controls=ncontrols/(ncases+ncontrols))
+  
+  ### given a person is a case (means that he has cancer), the probability that they smoke 10 gram or more?
+  head(esoph)
+  levels(esoph$tobgp)
+  
+  esoph %>%
+    filter(tobgp=="10-19"|tobgp=="20-29"|tobgp=="30+") %>%
+    summarise(pr_cases=sum(ncases)/all_cases)
+# we can use tobgp != "0-9g/day" instead of defining all group >10
+  
+  ### given the person is control, the probability that they smoke 10g or more? 
+    esoph %>%
+    filter(tobgp=="10-19"|tobgp=="20-29"|tobgp=="30+") %>%
+    summarise(pr_controls=sum(ncontrols)/all_controls)
+
+```
+
+Part 2:
+```{r}
+### for cases, the probaility of being in the highest alcohol group:
+ levels(esoph$alcgp)
+
+ncases_high_alco <- esoph %>%
+  filter(alcgp=="120+") %>%
+  pull(ncases) %>%
+  sum()
+
+Pr_ncases_high_alco <- ncases_high_alco/all_cases
+Pr_ncases_high_alco
+   
+   
+### for cases, the probaility of being in the highest tabacco group:
+ levels(esoph$tobgp)
+
+ncases_high_tob <- esoph %>%
+  filter(tobgp=="30+") %>%
+  pull(ncases) %>%
+  sum()
+
+Pr_ncases_high_tob <- ncases_high_tob/all_cases
+Pr_ncases_high_tob
+
+
+### for cases, the probability of being in highest tabacco and alcohol group?
+levels(esoph$tobgp)
+levels(esoph$alcgp)
+
+ncases_high_tob_alco <- esoph %>%
+  filter(tobgp=="30+" & alcgp=="120+") %>%
+  pull(ncases) %>%
+  sum()
+
+Pr_ncases_high_tob_alco <- ncases_high_tob_alco/all_cases
+Pr_ncases_high_tob_alco
+
+### for cases, the probability of being in highest tabacco or alcohol group?
+Pr_ncases_either_tab_alco <- Pr_ncases_high_alco + Pr_ncases_high_tob - Pr_ncases_high_tob_alco
+Pr_ncases_either_tab_alco
+
+### for controls, probability of being in the highest alcohol group:
+ncontrols_high_alco <- esoph %>%
+  filter(alcgp=="120+") %>%
+  pull(ncontrols) %>%
+  sum()
+
+Pr_ncontrols_high_alco <- ncontrols_high_alco/all_controls
+Pr_ncontrols_high_alco
+
+### how many times are more likely that case than controls be in the highest alcohol group:
+Pr_ncases_high_alco/Pr_ncontrols_high_alco
+
+### for controls, the probability to being in highest tabacco group:
+ncontrols_high_tob <- esoph %>%
+  filter(tobgp=="30+" ) %>%
+  pull(ncontrols) %>%
+  sum()
+
+Pr_ncontrols_high_tob <- ncontrols_high_tob/all_controls
+Pr_ncontrols_high_tob
+
+### for controls, the probability to being in highest tabacco and alcohol group:
+ncontrols_high_tob_alco <- esoph %>%
+  filter(tobgp=="30+" & alcgp=="120+" ) %>%
+  pull(ncontrols) %>%
+  sum()
+
+Pr_ncontrols_high_tob_alco <- ncontrols_high_tob_alco/all_controls
+Pr_ncontrols_high_tob_alco
+
+### for controls, the probability to being in highest tabacco or alcohol group:
+Pr_ncontrols_either_tob_alco <- Pr_ncontrols_high_tob + Pr_ncontrols_high_alco - Pr_ncontrols_high_tob_alco
+
+Pr_ncontrols_either_tob_alco
+
+### How many times more likely are cases than controls to be in the highest alcohol group or the highest tobacco group?
+Pr_ncases_either_tab_alco/Pr_ncontrols_either_tob_alco
 ```
 
