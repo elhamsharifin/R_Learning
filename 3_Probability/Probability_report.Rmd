@@ -1163,7 +1163,7 @@ If a random variable is defined as draws from an urn:
 
 Equations: 
 These equations apply to the case where there are only two outcomes, a and b with proportions p and 1−p respectively. The general principles above also apply to random variables with more than two outcomes.
-- Expected value of a random variable: ap+b(1−p)
+- Expected value of a random variable: E(X) = ap+b(1−p)
 because: (n×a×p + n×b×(1-p))/n
 - Expected value of the sum of n draws of a random variable:
 n×(ap+b(1−p))
@@ -1232,5 +1232,140 @@ se_S <- sqrt(n)*abs(-1+-17)*sqrt(p_green*p_not_green)
 se_S
 # sqrt(n)|b-a|sqrt(p(1-p))
 ```
+## Key points: Averages and Proportions:
+
+### Random variable times a constant
+- The expected value of a random variable multiplied by a constant is that constant times its original expected value: E[aX]=aE[X]=aμ
+for example: change of units of random variables from ft to inch
+In the same urn: E[(X1+X2+...+Xn)/n]=E[X1+X2+...+Xn]/n=nμ/n=μ
+
+- The standard error of a random variable multiplied by a constant is that constant times its original standard error: SE[aX]=a.SE[X]=a.σ
+
+### Average of multiple draws of a random variable
+- The expected value of the average of multiple draws from an urn is the expected value of the urn (μ).
+
+- The standard deviation of the average of multiple draws (independent draws) from an urn (same urn) is the standard deviation of the urn, σ, divided by the square root of the number of draws (σ/√n)
+SE[(X1+X2+...+Xn)/n]=SE[(X1+X2+...+Xn)]/n=sqrt(SE[X1]^2+SE[X2]^2+...+SE[Xn]^2)/n=[sqrt(σ1^2+σ2^2+...+σn^2)]/n=[sqrt(σ^2+σ^2+...+σ^2)]/n=[sqrt(n.σ^2)]/n=σ/sqrt(n)
+
+### The sum of multiple draws of a random variable
+- The expected value of the sum of n draws of a random variable is n
+times its original expected value: E[nX]=nμ
+
+- The standard error of the sum of n draws of random variable is 
+√n times its original standard error: SE[nX]=√nσ
+
+### The sum of multiple different random variables
+- The expected value of the sum of different random variables is the sum of the individual expected values for each random variable:
+E[X1+X2+...+Xn]=E[X1]+E[X2]+...+E[Xn]=μ1+μ2+...+μn
+if all of random variables drawn from a urn:
+E[X1+X2+...+Xn]=nμ
+
+- The standard error of the sum of different (Independenct) random variables is the square root of the sum of squares of the individual standard errors:
+SE[X1+X2+...+Xn]=sqrt(SE[X1]^2+SE[X2]^2+...+SE[Xn]^2)=sqrt(σ1^2+σ2^2+...+σn^2)
+varience[X1]=SE[X1]^2
+
+
+### Transformation of random variables
+- If X is a normally distributed random variable and a and b are non-random constants, then aX+b is also a normally distributed random variable.
+
+## Key points: Law of Large Numbers
+- The law of large numbers states that as n increases, the standard error of the average of a random variable decreases. In other words, when n is large, the average of the draws converges to the average of the urn.
+
+- The law of large numbers is also known as the law of averages.
+
+- The law of averages only applies when n is very large and events are independent. It is often misused to make predictions about an event being "due" because it has happened less frequently than expected in a small sample size.
+
+## Key points:How Large is Large in CLT?
+The sample size required for the Central Limit Theorem and Law of Large Numbers to apply differs based on the probability of success.
+- If the probability of success is high, then relatively few observations are needed.
+- As the probability of success decreases, more observations are needed.
+
+If the probability of success is extremely low, such as winning a lottery, then the Central Limit Theorem may not apply even with extremely large sample sizes. The normal distribution is not a good approximation in these cases, and other distributions such as the Poisson distribution (not discussed in these courses) may be more appropriate.
+
+### Exercise: American Roulette probability of winning money (CLT)
+```{r}
+### What is the probability that you end up winning money if you bet on green 100 times?
+set.seed(1,sample.kind="Rounding")
+p_green <- 2/38  #assume
+p_not_green <- 1-p_green
+n <- 100
+
+# avg: the expected outcome of 100 spins if you win $17 when the ball lands on green and you lose $1 when the ball doesn't land on green
+avg <- n*((17*p_green)+(-1*p_not_green)) #n×(ap+b(1−p))
+se <- sqrt(n)*abs(17- -1)*sqrt(p_green*p_not_green)   #sqrt(n)|b-a|sqrt(p(1-p)) standard error of sum of n outcomes
+
+### the probability of ending on winning money on betting 100 times on green
+pnorm(0,avg,se) #loosing (pr <= 0$)
+1-pnorm(0,avg,se)  #1-loosing=winning
+```
+### Exercise: American Roulette Monte Carlo simulation:
+```{r}
+### Generate monto Carlo simulation that genrate 10000 outcomes of S (summ of 100 bets). compare the expected value and standar deviation of list with expected value and standard devaition calculated for S?
+
+set.seed(1,sample.kind="Rounding")
+p_green <- 2/38  #assume
+p_not_green <- 1-p_green
+n <- 100
+B <- 10000
+S <- replicate(B,{
+  X <- sample(c(17,-1),n,replace=TRUE,prob=c(p_green,p_not_green))
+  sum(X)
+  })
+avg_monto <- mean(S)
+avg_monto
+sd_monto <- sd(S)
+sd_monto
+
+### probability of winning money from the Monte Carlo simulation
+mean(S>0)
+```
+Result: The proability of winning from Monto-Carlo and CLT are close but not exactly the same:
+because: The CLT does not work as well when the probability of success is small. If we make the number of roulette plays bigger, the probabilities will match better.
+
+### Exercise: American Roulette average winnings per bet
+```{r}
+### define a random variable Y containing the average winning per bet after betting on green 10,000 times.
+set.seed(1,sample.kind="Rounding")
+p_green <- 2/38  #assume
+p_not_green <- 1-p_green
+
+X <- sample(c(17,-1),n,replace=TRUE,prob=c(p_green,p_not_green)) # we dont need to use replicate and we can use just 10000 in sample
+Y <- mean(X)
+Y
+
+### What is the expected value of the average outcome per bet after betting on green 10,000 times?
+E_X <- p_green*17+p_not_green*-1  #refer to Average of multiple draws of a random variable
+E_X
+
+### What is the standard error of Y, the average result of 10,000 spins?
+se <- abs(17- -1)*sqrt(p_green*p_not_green)/sqrt(10000) #σ/√n = |b-a|√(p(1-p))/√n
+
+### What is the probability that your winnings are positive after betting on green 10,000 times?
+1-pnorm(0,E_X,se)
+```
+### Exercise: American Roulette Monte Carlo again
+```{r}
+### generate a Monte Carlo simulation producing 10,000 outcomes of S, the average outcome from 10,000 bets on green. Calculate the avg and standard error and compare with CLT results?
+
+set.seed(1,sample.kind="Rounding")
+p_green <- 2/38  #assume
+p_not_green <- 1-p_green
+
+B <- 10000
+n <- 10000
+S <- replicate(B,{
+  X <- sample(c(17,-1),n,replace=TRUE,prob=c(p_green,p_not_green))
+  mean(X)
+})
+avg <- mean(S)
+avg
+se <- sd(S)
+se
+
+### What is the probability of winning more than $0 estimated using  Monte Carlo simulation? 
+mean(S>0)
+```
+
+Result: the result of Monto-Carlo simulation and CLT are much more closer because The CLT works better when the sample size is larger.
 
 
