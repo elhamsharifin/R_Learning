@@ -766,4 +766,471 @@ Pr_ncontrols_either_tob_alco
 ### How many times more likely are cases than controls to be in the highest alcohol group or the highest tobacco group?
 Pr_ncases_either_tab_alco/Pr_ncontrols_either_tob_alco
 ```
+## Key points: Continuous Probability
+The cumulative distribution function (CDF) is a distribution function for continuous data x that reports the proportion of the data below 
+a for all values of a:
+F(a)=Pr(x≤a)
+The CDF is the probability distribution function for continuous variables. For example, to determine the probability that a male student is taller than 70.5 inches given a vector of male heights 
+x, we can use the CDF:
+Pr(x>70.5)=1−Pr(x≤70.5)=1−F(70.5)
+The probability that an observation is in between two values 
+a,b is F(b)−F(a).
+```{r}
+# Cumulative distribution function
+library(dslabs)
+library(tidyverse)
+data(heights)
+
+# x defines as male heights from dslabs dataset:
+x <- heights %>% 
+  filter(sex=="Male") %>%
+  .$height
+
+# we can define a function of cumulative distribution (CDF) of x:
+F <- function(a) mean(x <= a)
+1 - F(70)  #it gives us the probability of male height more than 70
+```
+## Key points:Theoretical Distribution
+pnorm(a, avg, s) gives the value of the cumulative distribution function F(a) for the normal distribution defined by average avg and standard deviation s.
+
+We say that a random quantity is normally distributed with average avg and standard deviation s if the approximation pnorm(a, avg, s) holds for all values of a.
+
+If we are willing to use the normal approximation for height, we can estimate the distribution simply from the mean and standard deviation of our values.
+
+If we treat the height data as discrete rather than categorical, we see that the data are not very useful because integer values are more common than expected due to rounding. This is called discretization.
+
+With rounded data, the normal approximation is particularly useful when computing probabilities of intervals of length 1 that include exactly one integer.
+
+```{r}
+# Cumulative distribution function
+
+### probability of male heights more than 70
+1-pnorm(70.5,mean(x),sd(x))
+
+### plot distribution of exact heights in data
+plot(prop.table(table(x)), xlab="a = Heights (inches)", ylab="Pr(X = a)")
+
+### probabilities in actual data over length 1 ranges containing an integer: Be careful this is actual data
+mean(x <= 68.5) - mean(x <= 67.5)
+mean(x <= 69.5) - mean(x <= 68.5)
+mean(x <= 70.5) - mean(x <= 69.5)
+
+### probabilities in normal approximation match well for these intervals: Be carful: this is approximation
+pnorm(68.5,mean(x),sd(x))-pnorm(67.5,mean(x),sd(x))
+pnorm(69.5,mean(x),sd(x))-pnorm(68.5,mean(x),sd(x))
+pnorm(70.5,mean(x),sd(x))-pnorm(69.5,mean(x),sd(x))
+
+### However, approximation does not match with actual data well for other inetervals:
+mean(x <= 70.9) - mean(x <= 70.1)
+pnorm(70.9,mean(x),sd(x))-pnorm(70.1,mean(x),sd(x))
+```
+
+## Key points: Probability Density
+The probability of a single value is not defined for a continuous distribution.
+
+The quantity with the most similar interpretation to the probability of a single value is the probability density function f(x).
+
+The probability density f(x) is defined such that the integral of 
+f(x) over a range gives the CDF of that range.
+F(a)=Pr(X≤a)=∫(−∞,a)f(x)dx
+
+In R, the probability density function for the normal distribution is given by dnorm(). We will see uses of dnorm() in the future.
+
+Note that dnorm() gives the density function and pnorm() gives the distribution function, which is the integral of the density function.
+
+## Plotting the Probability Density for normal distribution:
+using the function of dnorm(), we can plot the probaility density for normal distribution. dnorm() gives the probaility density f(x) for a certain z-score. by calculationg the f(x) for a range of possible values of z score, we can plot the density. 
+
+1) we can generate a series of z-score that is typical range of normal distribution. 
+2) since 99.7% of observation would be in the range of −3≤z≤3, if we assume the range of z slightly more than this range, it will cover the normal distribution. 
+3) we will calculate f(z) using dnorm()
+4) we will plot z v. f(z)
+
+Note: dnorm() gives us the normal distribution on zero by default. 
+density function for mean of mu and standard deviation of sigma would be:
+dnorm(z, mu, sigma)
+
+```{r}
+### plotting a density function 
+library(tidyverse)
+x <- seq(-4,4,length=100)
+data.frame(x,f=dnorm(x)) %>%
+  ggplot(aes(x,f)) +
+  geom_line()
+```
+
+## Key points: Monto Carlo Simulation
+rnorm(n, avg, s) generates n random numbers from the normal distribution with average avg and standard deviation s. (By defaults, average and standard deviations are 0 and 1 repectively) 
+
+By generating random numbers from the normal distribution, we can simulate height data with similar properties to our dataset. Here we generate simulated height data using the normal distribution.
+
+```{r}
+library(dslabs)
+library(tidyverse)
+data(heights)
+
+## male height data
+height_male <- heights %>% filter(sex=="Male") %>% .$height
+
+## normal distribution of male heights. both dataset should have n #observations
+n <- length(height_male)
+avg <- mean(height_male)
+s <- sd(height_male)
+simulated_heights <- rnorm(n,avg,s)
+
+##plotting distribution of simulated_heights
+data.frame(simulated_heights = simulated_heights) %>%
+  ggplot(aes(simulated_heights)) +
+  geom_histogram(color="black",binwidth=1)
+# the distribution looks normal because it generated to be normal
+
+## Monto Carlo Simulation of tallest person over 7 feet:
+# (the only input data are average and standard deviation of data)
+B <- 10000 # we will run the model for 10000 times
+tallest <- replicate(B,{
+  simulated_data <- rnorm(800,avg,s) #for each run, it generates 800 normally distributed random heights
+  max(simulated_data)
+})
+mean(tallest >= 7*12) #proportion of times that the tallest person exceeds 7 feet.
+```
+
+## Key points: other continuous distributions
+You may encounter other continuous distributions (Student t, chi-squared, exponential, gamma, beta, etc.).
+
+R provides functions for density (d), quantile (q), probability distribution (p) and random number generation (r) for many of these distributions.
+
+Each distribution has a matching abbreviation (for example, norm() or t()) that is paired with the related function abbreviations (d, p, q, r) to create appropriate functions.
+
+For example, use rt() to generate random numbers for a Monte Carlo simulation using the Student t distribution.
+
+```{r}
+### plotting normal distribution with dnorm() function
+x <- seq(-4,4,length.out=100)
+data.frame(x,f=dnorm(x)) %>%
+  ggplot(aes(x,f)) +
+  geom_line()
+```
+### Exercises:
+Distribution of female heights:
+If the female heights from a dataset approximated with a normal distribution with average of 64 inch and stand deviation of 3 inch. what is the propability that the female height be shorter than 5 foot. 
+```{r}
+### female heights
+avg_female <- 65
+sd_female <- 3
+pnorm(5*12,avg_female,sd_female)
+
+### the prbability that a random height be more than 7 feet?
+1-pnorm(7*12,avg_female,sd_female)
+
+## the prbability that a random height be between 62 and 68 inches?
+pnorm(68,avg_female,sd_female)-pnorm(62,avg_female,sd_female)
+
+### the prbability that a random height be between 62 and 68 inches based on centimeter?
+avg_female_cm <- 65*2.54
+sd_female_cm <- 3*2.54
+pnorm(68*2.54,avg_female_cm,sd_female_cm)-pnorm(62*2.54,avg_female_cm,sd_female_cm)
+# as noticed the answer to this question does not change with converting the units to cm. In fact, if you look closely, you notice that 61 and 67 are both 1 SD away from the average.
+
+###the probability that a random chosen height be between one sd from average.
+avg_female <- 65
+sd_female <- 3
+taller <- avg_female + sd_female
+shorter <- avg_female - sd_female
+pnorm(taller,avg_female, sd_female) - pnorm(shorter,avg_female, sd_female)
+
+```
+```{r}
+### male_heights:
+# Imagine that the male heights are normally distributed with an average of 69inch and standard deviation of 3 feet.
+male_avg <- 69
+male_sd <- 3
+
+### how tall is man in 99th percentile:
+qnorm(0.99,male_avg,male_sd)
+```
+```{r}
+### distribution of IQ scores:
+# the IQ results are normally distributed with average of 100 and standard deviation of 15. Suppose you wannna know the distribution of the person with the highest IQ in your school district, in which 10,000 people are born each year.
+# generate 10,000 IQ scores 1,000 times using a Monte Carlo simulation. Make a histogram of the highest IQ scores
+B <- 1000
+IQ_mean <- 100
+IQ_sd <- 15
+
+high_IQ <- replicate(B,{
+  simulated_IQ <- rnorm(10000,IQ_mean,IQ_sd)
+  max(simulated_IQ)
+})
+
+hist(high_IQ)
+```
+### assessment: ACT data
+ACT is a test score in the US. duron 2016-2018, the distribution of teset score was normal with mean of 20.9 and standard deviation of 5.7. 
+Set the seed to 16, generate a normal distribution of 10000 tests with mean of 20.9 and sd of 5.7 as ACT_score. ( the real scores are between 1 and 36)
+Note: for R (version 3.6), you should use set.seed(x, sample.kind = "Rounding") instead of set.seed(x):
+```{r}
+### data of ACT test
+library(tidyverse)
+set.seed(16,sample.kind = "Rounding")
+ACT_score <- rnorm(10000,20.9,5.7)
+mean(ACT_score)
+sd(ACT_score)
+
+### how many perfect score (36 or greater) are there out of 10,000 #simulated test?
+sum(ACT_score>=36)
+
+### The probability of a score greater than 30?
+mean(ACT_score > 30)
+
+### the probability that a score is less or equall of 10:
+mean(ACT_score <= 10)
+
+### suppose x equal to the sequence of integers 1 to 36. Use dnorm to determine the value of the probability density function over x given a mean of 20.9 and standard deviation of 5.7; save the result as f_x. Plot x against f_x.
+x <- seq(1,36)
+
+data.frame(x,f_x=dnorm(x,20.9,5.7)) %>%
+  ggplot(aes(x,f_x)) +
+  geom_line()
+
+```
+### Assessment part 2: Converting ACT scores to z-scores:
+Converting to Z-scores: values with the distribution with mean of 0 and standard deviation of 1. you must subtract data from mean and devide by standard deviation. Use the mean and sd of ACT_scores, not the roiginal oned which used to generate ACT_scores.
+
+Note:
+A Z-score of 2 corresponds roughly to the 97.5th percentile.
+
+```{r}
+### probability of Z-score greater than 2. (2 standard deviation above the mean)
+library(tidyverse)
+set.seed(16,sample.kind = "Rounding")
+ACT_score <- rnorm(10000,20.9,5.7)
+mean(ACT_score)
+sd(ACT_score)
+
+z_score <- (ACT_score - mean(ACT_score))/sd(ACT_score)
+mean(z_score_ACT >2)
+
+### which ACT score corresponds to 2 standard deviation above the mean?it means z=2  z_score <- (ACT_score - mean(ACT_score))/sd(ACT_score)
+2*sd(ACT_score)+ mean(ACT_score)
+
+### what is 97.5th percentile of normally distributed data with the mean and standard deviation observed in act_scores:
+qnorm(0.975,mean(ACT_score),sd(ACT_score)) 
+```
+### exercise: (function of creating CDF for ACT score)
+```{r}
+### write a function taking value and producing the probability of an ACT score less than or equal to that value (the CDF). Apply this function to the range 1 to 36. 
+
+library(tidyverse)
+set.seed(16,sample.kind = "Rounding")
+ACT_score <- rnorm(10000,20.9,5.7)
+mean(ACT_score)
+sd(ACT_score)
+
+### the minimum intiger score that the probability of the score or lower is at-least 0.95
+cdf <- sapply(1:36, function(a){
+  mean(ACT_score <= a)
+})
+min(which(cdf >= 0.95)) # we didnot use qnorm because it is not for sample, and it is theoritical
+
+### what is expected score for 95th percentile, the value for which the probability of receiving that score or lower is 0.95, given a mean score of 20.9 and standard deviation of 5.7.
+qnorm(0.95,20.9,5.7)
+
+### calculate 1st through 99th percentiles of the ACT_scores for p #<- seq(0.01, 0.99, 0.01). Save these as sample_quantiles.
+#In what percentile is a score of 26?
+
+p <- seq(0.01,0.99,0.01)
+sample_quantile <- quantile(ACT_score,p)
+sample_quantile[max(which(sample_quantile<26))]
+names(sample_quantile[max(which(sample_quantile<26))])
+
+### QQ-plot
+#Make a corresponding set of theoretical quantiles using qnorm() over the interval p <- seq(0.01, 0.99, 0.01) with mean 20.9 and standard deviation 5.7. Save these as theoretical_quantiles. Make a QQ-plot graphing sample_quantiles on the y-axis versus theoretical_quantiles on the x-axis.
+theoretical_quantile <- qnorm(p,20.9,5.7)
+plot(theoretical_quantile,sample_quantile)
+```
+## Key points: Random Variables:
+Random variables are numeric outcomes resulting from random processes.
+
+Statistical inference offers a framework for quantifying uncertainty due to randomness.
+
+```{r}
+# defines random variable x that is 1 if it is blue, otherwise 0
+beads <- rep(c("red","blue"),times=c(2,3))
+beads
+x <- ifelse(sample(beads,1)=="blue",1,0)
+x
+# x is a random variable and it will vary everytime!
+x <- ifelse(sample(beads,1)=="blue",1,0)
+x
+x <- ifelse(sample(beads,1)=="blue",1,0)
+x
+x <- ifelse(sample(beads,1)=="blue",1,0)
+x  
+
+
+```
+## Key points: Sampling Models
+A sampling model models the random behavior of a process as the sampling of draws from an urn.
+
+The probability distribution of a random variable is the probability of the observed value falling in any given interval.
+
+We can define a CDF F(a)=Pr(S≤a) to answer questions related to the probability of S being in any interval.
+
+The average of many draws of a random variable is called its expected value.
+
+The standard deviation of many draws of a random variable is called its standard error.
+
+###Example: we can generate a sampling model for the random variable S, showing the casino's total winnings. 
+```{r}
+### Monte Carlo simulation: Chance of casino losing money on roulette
+# suppose 1000 people are playing and only they can bet on red or black. The casino wants to predeict how much money they can win or lose: thay wanna know the chance of loosing money.
+# S: casiona total winning
+#earn for sampling model: 18 red pocket, 18 black, and 2 greens 
+
+### sampling model 1: define urn, then sample
+color <- rep(c("red","black","green"),c(18,18,2))
+color
+
+n <- 1000
+X <- sample(ifelse(color=="red",-1,1),n,replace=TRUE)
+X[1:10] #first 10 oucomes of these 1000 draws
+
+```
+
+```{r}
+### sampling model 2: define urn inside sample function by noting probabilities and not colors
+n <- 1000
+X <- sample(c(-1,1),n,replace=TRUE,prob=c(9/19,10/19)) #1000 dependent draw
+S <- sum(X)  #total winning: sum of draws
+S
+#18/(38) of winning casino and 20/(38) of loosing. every green color is corresponding with loosing. but poeple only can choose from 38.
+```
+
+```{r}
+###We use sampling models to run Monto Carlo Simulation and based on the result to calculate the probability of casiono losing money.
+
+B <- 10000 #repetition over Monto Carlo
+n <- 1000  #number of people
+S <- replicate(B,{
+  X <- sample(c(-1,1),n,replace=TRUE,prob=c(9/19,10/19))
+  sum(X)
+})
+
+mean(S<0)  #probability of casino losing 
+```
+
+```{r}
+### we can plot a histogram of observed values of S and also normal density curve based on mean and standard deviation of S.
+library(tidyverse)
+s <- seq(min(S),max(S),length=100) #sequence of 100 in the range of S
+normal_density <- data.frame(s=s,f=dnorm(s,mean(S),sd(S))) #producing normal density for S
+
+data.frame(S=S) %>%
+  ggplot(aes(S,..density..)) +  #it can be count or density
+  geom_histogram(color="black",binwidth=10) +
+  ylab("Probability") +
+  geom_line(data=normal_density,mapping=aes(s,f),color="blue")
+```  
+## Key points: Distributions versus Probability Distributions
+A random variable X has a probability distribution function 
+F(a) that defines Pr(X≤a) over all values of a.
+
+Any list of numbers has a distribution. The probability distribution function of a random variable is defined mathematically and does not depend on a list of numbers.
+
+The results of a Monte Carlo simulation with a large enough number of observations will approximate the probability distribution of X.
+
+If a random variable is defined as draws from an urn:
+- The probability distribution function of the random variable is defined as the distribution of the list of values in the urn.
+
+- The expected value of the random variable is the average of values in the urn.
+
+- The standard error of one draw of the random variable is the standard deviation of the values of the urn.
+
+## Key points:Notation for Random Variables
+- Capital letters denote random variables (X) and lowercase letters denote observed values (x).
+
+- In the notation Pr(X=x), we are asking how frequently the random variable X is equal to the value x. For example, if x=6, this statement becomes Pr(X=6).
+
+##Key points: Central Limit Theorem
+- The Central Limit Theorem (CLT) says that the distribution of the sum of a random variable is approximated by a normal distribution.
+
+- The expected value of a random variable, E[X]=μ, is the average of the values in the urn.This represents the expectation of one draw.
+
+- The standard error of one draw of a random variable is the standard deviation of the values in the urn.
+
+- The expected value of the sum of draws is the number of draws times the expected value of the random variable. 
+
+- The standard error of the sum of independent draws (very important assumption) of a random variable is the square root of the number of draws times the standard deviation of the urn. 
+
+Equations: 
+These equations apply to the case where there are only two outcomes, a and b with proportions p and 1−p respectively. The general principles above also apply to random variables with more than two outcomes.
+- Expected value of a random variable: ap+b(1−p)
+because: (n×a×p + n×b×(1-p))/n
+- Expected value of the sum of n draws of a random variable:
+n×(ap+b(1−p))
+- Standard deviation of an urn with two values: |b-a|sqrt(p(1-p))
+- Standard error of the sum of n draws of a random variable:
+sqrt(n)|b-a|sqrt(p(1-p))
+
+## Exercise: American Roulette
+An American roulette wheel includes 18 black, 18 red, and 2 green pockets that each red and black pocket is associated with a number from 1 to 36. Two remaining green pockets, represent "0" and "00". Players bet on pockets which they think a ball will be landed after spunning the wheel. Players can bet on a specific number(0, 00, 1-36) or color (red, black, or green). 
+
+
+```{r}
+### what is the chance of landing balls in green pockets:
+green <- 2
+red <- 18
+black <- 18
+P_green <- green/(green+red+black)
+P_green
+```
+ In the game, the payout to winning on green is 17 dollars. It means that if you bet 1 dollar and it lands on green, you will win 17 dollars. if you land on others, you will lose 1 dollar.
+ 
+```{r}
+### Create a model to predict your winnings from betting on green one time:
+set.seed(1,sample.kind="Rounding")
+green <- 2
+red <- 18
+black <- 18
+
+p_green <- green/(green+red+black)
+p_not_green <- 1- p_green
+
+X <- sample(c(17,-1), 1, prob=c(p_green,p_not_green)) #this is only 1 sample and do not need replace=TRUE
+X
+
+### compute the expected value of X:
+E_X <- 17 * p_green + (-1)*p_not_green #E[X]=(ap)+(b(1-p))
+E_X
+
+### compute the standard error of random variable of X that shows a single outcome after one spin of the roulette wheel. 
+abs(17-(-1))*sqrt(p_green*p_not_green)  # |b-a|sqrt(p(1-p))
+
+```
+```{r}
+### Predict sum of winnings
+### create a random variable S which sums your winnings after betting on green 1,000 times.
+set.seed(1,sample.kind="Rounding")
+green <- 2
+red <- 18
+black <- 18
+
+p_green <- green/(green+red+black)
+p_not_green <- 1- p_green
+
+n <- 1000
+
+X <- sample(c(17,-1),1000,replace=TRUE,prob=c(p_green,p_not_green))
+S <- sum(X)
+S
+
+### What is the expected value of S?
+E_S <- n *((p_green*17)+(p_not_green)*(-1))
+E_S
+
+### What is the standard error of S?
+se_S <- sqrt(n)*abs(-1+-17)*sqrt(p_green*p_not_green)
+se_S
+# sqrt(n)|b-a|sqrt(p(1-p))
+```
+
 
