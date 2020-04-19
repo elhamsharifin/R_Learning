@@ -1368,4 +1368,118 @@ mean(S>0)
 
 Result: the result of Monto-Carlo simulation and CLT are much more closer because The CLT works better when the sample size is larger.
 
+## Assessment: SAT testing
+In SAT exam, every correct answer awarded 1 point and any incorrecy answer has a penalty of -0.25 point. The quantitative test is consisted of 44 multipli-choice questions for which there are 5 answer choices. Assume that a student answer ther question by gussing all questions.
+
+### Using Central Limit Theory:
+```{r}
+### using CLT:
+###  probability of guessing correctly for one question
+p_correct <- 1/5 #one correct answer among 5 options
+p_correct
+p_incorrect <- 4/5
+p_incorrect
+
+### expected value of points for gussing correct for one question:
+E_correct <- (+1)*(p_correct)+(-0.25)*(p_incorrect) #ap+b(1-p)
+E_correct
+
+### expected value of gussing all 44 questions: #n.(ap+b(1-p))
+E_all <- ((+1)*(p_correct)+(-0.25)*(p_incorrect))*44 
+E_all
+
+### standard error of gussing all questions: sqrt(n)|b-a|sqrt(p(1-p))
+se_all <- sqrt(44)*abs(+1--0.25)*sqrt(p_correct*p_incorrect)
+se_all
+
+### using CLT, what is the probability of a gussing student be 8 points or more?
+1-pnorm(8,E_all,se_all)
+```
+### Using Monto Carlo Simulation:
+```{r}
+set.seed(21, sample.kind = "Rounding")
+B <- 10000
+n <-44
+
+S <- replicate(B,{
+  X <- sample(c(-0.25,+1),n,replace = TRUE,prob=c(p_incorrect,p_correct))
+  sum(X)
+})
+
+mean(S >= 8)
+
+```
+### updating the SAT exam: eliminating the penalty score and changing number of the quesions to 4:
+```{r}
+### expected value score of gussing new exam?
+p <- 1/4 #p_correct
+a <- +1 #score of correct
+b <- 0 #score of incorrect
+n <- 44
+E_new <- (p*a + (1-p)*b)*n
+E_new
+```
+
+
+
+```{r}
+### suppose a range of correct answer probabilities p <- seq(0.25, 0.95, 0.05) showing a range of student skills. 
+# what is the lowest p that the probability of scoring over 35 exceeds 80%?
+library(tidyverse)
+a <- +1
+b <- 0
+n <- 44
+
+S_func <- function(p){
+  ev <- (p*a + (1-p)*b)*n
+se <- sqrt(n)*abs(b-a)*sqrt(p*(1-p))
+1-pnorm(35,ev,se)
+}
+
+p <- seq(0.25, 0.95, 0.05)
+prob_35 <- sapply(p,S_func)
+
+#data.frame(p,prob_35) %>% filter(prob_35>0.8)
+min(p[which(prob_35 > 0.8)])
+```
+
+## Assessment: Betting on Roulette
+A casino is offering a Special bet on roulette, that is a bet on five pockets (00, 0, 1, 2, 3) out of 38 total pockets. The bet pays out 6 to 1. In fact, a losing bet is uqual to -1 dollar and a successful bet is equal to 6 dollar. A gambler wants to know the chance of losing money if he places 500 bets on the roulette House Special.
+```{r}
+### what is the chance of loosing?
+a <- +6 #winning ($)
+b <- -1 #loosing ($)
+p <- 5/38
+n <- 500
+
+### what is the expected value of payout for one bet?
+exp_v <- (a*p + b*(1-p))
+exp_v
+
+### what is thestandard error of payout for one bet?
+se <- abs(b-a)*sqrt(p *(1-p))
+se
+
+### the expected value of the average payout over 500 bets?
+#Note:  the expected value of the average is differnt from the expected value of the sum
+exp_v  
+
+### the standard error of the average payout over 500 bets?
+ se /(sqrt(n))    #(σ/√n)
+ 
+ 
+### the expected value of sum of 500 bets:
+ n * exp_v
+ 
+ ### the standard error of sum of 500 bets:
+ sqrt(n)*se
+     #√nσ
+ 
+ ### what is the probability of losing money over 500 bets?
+ # Note: use sexpected value and standard error of sum
+ pnorm(0, n * exp_v,sqrt(n)*se)
+```
+
+
+
 
