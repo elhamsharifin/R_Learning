@@ -1480,6 +1480,394 @@ exp_v
  pnorm(0, n * exp_v,sqrt(n)*se)
 ```
 
+## Key points: The Big Short: Interest Rates Explained
+- Interest rates for loans are set using the probability of loan defaults to calculate a rate that minimizes the probability of losing money.
+
+- We can define the outcome of loans as a random variable. We can also define the sum of outcomes of many loans as a random variable.
+
+- The Central Limit Theorem can be applied to fit a normal distribution to the sum of profits over many loans. We can use properties of the normal distribution to calculate the interest rate needed to ensure a certain probability of losing money for a given probability of default.
+
+```{r}
+### suppose a bank give 1000 loans in the total amount of 180,000$ this year. and suppose after adding up all the expenses, bank loss 200,000$ per foreclosure. 
 
 
+### Code: Interest rate sampling model
+n <- 1000
+loss_per_closure <- -200000
+p <- 0.02 #0.02 of customers are default and they dont pay back the money which they borrowed
+defaults <- sample(c(0,1),n,replace=TRUE,prob=c(1-p,p)) #1 shows lose money
+sum(defaults*loss_per_closure)
+# if we run the code for different times: we will have different answer, because it is the probability and not sure
+```
+```{r}
+### Code: Interest rate Monto Carlo simulation
+n <- 1000
+B <- 10000
+loss_per_foreclosure <- -200000
+p <- 0.02 
+
+losses <- replicate (B,{
+  defaults <- sample(c(0,1),n,replace=TRUE,prob=c(1-p,p)) 
+  sum(defaults*loss_per_foreclosure)
+})
+
+### distribution from Monto-Carlo (plotting expected losses):
+library(tidyverse)
+data.frame(losses_per_milions=losses/10^6) %>% ggplot(aes(losses_per_milions)) + geom_histogram(binwidth=0.6,color="black")
+```
+actually, we dont need to run a monto carlo simulations. In fact, because losses ate the sum of some independent draws, its distribution is approximately normal wi th expected value and standard deviation given with previous folrmula:
+```{r}
+### CLT: The expected value and standard error of sum of 1000 loans
+loss_per_foreclosure <- -200000
+n <-  1000
+sv <- n*(p*loss_per_foreclosure  + (1-p)*0)
+sv
+se <- sqrt(n)*abs(loss_per_foreclosure-0)*sqrt(p*(1-p))
+se
+```
+The amount of x can be calculated to be added to each loan in the way that the expected value become 0 using the below equation:
+lp+x(1-p)=0
+x=-lp/1-p
+
+This equation is the definition of expected value given a loss per foreclosure l with foreclosure probability p and profit x if there is no foreclosure (probability 1−p).
+```{r}
+### the profit x is equal to:
+loss_per_foreclosure <- -200000
+n <-  1000
+p<- 0.02
+x <- -(loss_per_foreclosure*p)/(1-p)
+x #this is the interest rate of about 2%
+
+### on a loan of 800000$, x is equal an interest rate of:
+x/800000
+
+```
+this shows on average. But still there is 50% for losing money by bank. We have to choose an inteerst rate that makes is unlikely for bank to lose money. we have to choose inteerst somehow that be enough that bank does not loose money and also be compatetive with other banks. lets say that we want that the chance of loosing money by bank be one percent. what does x have to be now?
+
+Pr (S<0) = 0.01
+
+We note that S is approximately Normal. 
+E[S] <- {lp+x(1-p)}n
+SE[S] <- |x-l|sqrt(n.p.(1-p))
+
+some mathematical tricks:
+Pr(S<0) = Pr{(S-E[S])/ SE[S]  < -E[S]/SE[S]}
+(S-E[S])/ SE[S] = standard normal random variable = z 
+(base on z-score definition: Z <- x-mu/sigma)
+Pr(Z < -E[S]/SE[S])
+
+Now we put the actual value of E[S], SE[S]:
+Pr(Z < -{lp+x(1-p)}n/(x-l)sqrt(n.p.(1-p)))=0.01
+
+that it gives us z <- qnorm(0.01) that gives us the value of z for which Pr(Z<=z)=0.01  z=-{lp+x(1-p)}n/(x-l)sqrt(n.p.(1-p)))
+
+solving for x:
+x=-l(np-z(sqrt(np(1-p))))/{n(1-p)+zsqrt(np(1-p))}
+
+```{r}
+###  Calculating interest rate for 1% probability of losing money:
+loss_per_closure <- -200000
+n <-  1000
+p<- 0.02
+l <- loss_per_closure
+z <- qnorm(0.01)
+x=-l*(n*p-z*(sqrt(n*p*(1-p))))/{n*(1-p)+z*sqrt(n*p*(1-p))}
+x  #which is interest rate of 0.03 that still is good!
+
+### Using CLT:
+loss_per_closure*p + x*(1-p) #expected profit from loan
+# it give the total expected profit of $2M
+
+### running a Monto Caro simulation:
+B <- 10000
+profit <- replicate(B,{
+  draws <- sample(c(l,x),n,replace=TRUE,prob=c(p,1-p))
+  sum(draws)
+})
+mean(profit) #expected value of the profit over n loans (about $2M)  
+mean(profit<0) # probability of losing money (about 1%)
+```
+## Key points: The big short
+- The Central Limit Theorem states that the sum of independent draws of a random variable follows a normal distribution. However, when the draws are not independent, this assumption does not hold.
+
+- If an event changes the probability of default for all borrowers, then the probability of the bank losing money changes.
+
+- Monte Carlo simulations can be used to model the effects of unknown changes in the probability of default.
+
+```{r}
+### expected value with higher default rate and interest rate
+p <- 0.04
+loss_per_closure <- -200000
+r <- 0.05
+x <- 0.05*180000
+loss_per_closure*p + x*(1-p) #Positive deposit earned by bank from each loan
+```
+
+### Probability of losing money
+we can minimizing the chance of loosing money by increasing  the number of loans (n):
+Pr(S<0)=Pr(Z < -E[x]/SE[x]): both E[x] and SE[x] are related to n.
+
+E[x]=n.μ, SE[x]=√n*σ
+based on these formula, -n.μ/√n*σ=-√n.μ/σ=-z
+
+to find the value of n for which z is less than or equal to our desired value, we take z≤−√nμ/σ and solve for n:
+
+n≥ z^2*σ^2/μ^2
+for this value of n, we have the gurantee that we have the probability of 0.01 of loosing money.
+
+Low of large numbers: when n is large, the average earning per loan converges to the expected earning mu.
+
+```{r}
+### calculating number of loans for desired probability of losing money
+z <- qnorm(0.01)
+z
+l <- loss_per_closure
+n <- ceiling(z^2 *(l-x)^2*(p*(1-p))/(l*p+x*(1-p))^2)
+n  #the number of loans for that the probbaility of loan become 1%
+
+n*(loss_per_closure*p+x*(1-p))
+
+### running by Monto-Carlo simulation
+B <- 10000
+profit <- replicate(B,{
+  draws <- sample(c(loss_per_closure,x),n,replace=TRUE,prob=c(p,1-p))
+  sum(draws)
+})
+mean(profit<=0)  #the percent of mean of loosing money
+```
+
+A few month later one person create a Morgage company and instead of profiting, he lost money, why? they planed based on the following mathematical formula. by n large, we can minimize the standard error of our profit.
+SE[X1+X2+...+Xn/n]=σ/√n
+However, for being true this formula, the X must be independent draws. one person defaulting must be indepedent of other people defaulting. In extreme averageing an event over and over and in the case that the events be independent, we will get much higher standard error.
+SE[X1+X2+...+Xn/n] = SE[nX1/n] = σ > σ/√n
+
+for having a more realistic simulation, suppose ther is a b global event that effect everybody's morgages. these draws are not independent anymore:
+
+The following Monte Carlo estimates the expected profit given an unknown probability of default 0.03≤p≤0.05, modeling the situation where an event changes the probability of default for all borrowers simultaneously. 
+```{r}
+### Monte Carlo simulation with unknown default probability
+p <- 0.04
+x <- 0.05*180000
+B <- 10000
+profit <- replicate(B,{
+  new_p <- 0.04 + sample(seq(-0.01,0.01,length=100),1)
+  draws <- sample(c(loss_per_closure,x),n,replace=TRUE,prob=c(new_p,1-new_p))
+  sum(draws)
+})
+
+mean(profit) #expected profit
+mean(profit<0) #probaility of losing money will increase! dangerous!
+mean(profit< -10000000) #probability of losing money over $10M! very high
+
+library(tidyverse)
+data.frame(profit_in_millions=profit/10^6) %>%
+  ggplot(aes(profit_in_millions,..count..)) +
+  geom_histogram(binwidth=5,col="black")
+# as you can see, it is not normal at all!
+```
+
+## Exercise: Bank Earning
+suppose that a bank gives 10,000 loans. the default rate is 0.03 and you lose 200,000$ in each foreclosure.  
+```{r}
+set.seed(1,sample.kind="Rounding")
+n <- 10000
+loss_per_foreclosure <- -200000
+p <- 0.03
+
+### store the earning of your bank in variable S. what is the total money which bank lose?
+defaults <- sample(c(0,1),n,replace=TRUE,prob=c(1-p,p))
+S <- sum(defaults)*loss_per_foreclosure
+# assume 1 show default, and 0 indicates a payment
+
+### what is the total money which bank lose? Using Monto Carlo simualtion
+set.seed(1,sample.kind="Rounding")
+B <- 10000
+S <- replicate(B,{
+  defaults <- sample(c(0,1),n,replace=TRUE,prob=c(1-p,p))
+  sum(defaults)*loss_per_foreclosure
+})
+
+hist(S)
+
+###what is the expected dvalue of S? assume that bank does not makes any money if the loan is paid.
+n <- 10000
+x <- 0
+E_S <- n*(loss_per_foreclosure*(p)+x*(1-p))
+E_S
+
+### what is the standard error of S?
+n <- 10000
+x <- 0
+SE_S <- abs(0-loss_per_foreclosure)*sqrt(n*p*(1-p))
+SE_S
+
+### in the previous part, bank did not earn any money and it was likely thta people dont pay their loans and bank lose money. Assume you give loans as amounts of $180,000. How much money do you need to make when people pay their loans so that you net loss be $0?
+
+#rate?
+#p*loss_per_foreclosure+x*(1-p)=0 #x total money that bank must earn
+x <- -p*loss_per_foreclosure/(1-p)
+x
+rate <- x/180000
+rate
+
+### with the interest rate of previously calculated, bank still will lose money in 50% of situations. what must be interest rate for which the rate of losing money be 1 in 20. 
+#based on the previous mathematical calculation, Pr (Z <= z)=0.05 Z=E[x]/SE[x]
+
+z <- qnorm(0.05)
+z
+#z=-{lp+x(1-p)}*n/(x-l)sqrt(n.p.(1-p)))
+x=-loss_per_foreclosure*(n*p-z*(sqrt(n*p*(1-p))))/{n*(1-p)+z*sqrt(n*p*(1-p))}
+x   # the expected profit per loan
+x/180000
+
+```
+## Assessment: Insurance companies
+Insurance companies must make a decision how much to charge as premiums for policies given estimates of the probability that an individual will collect on that policy. 
+An insurance company has a one-year life insurance policy that pays $150,000 for the event of death in a year. The premium for this policy is 1150 dollars for a women of age 50. suppose in the case of a claim for an event, the company forefit the premium and loses 150,000 dollars, and if theer is no claim, the company will earn 1150 dollars. The company plans to sell 1000 policicies to depographic. 
+The death_prob data from dslabs includes some information about the estimated probability of death (prob) whithin 1 year for various ages and sexex.s 
+```{r}
+library(tidyverse)
+library(dslabs)
+data(death_prob)
+head(death_prob)
+#install.packages("dslabs")
+
+### what is the death probaility of death of a 50 years old female:
+p <- death_prob %>%
+  filter(sex=="Female"& age=="50") %>%
+  .$prob
+
+### what is the expected value of company's net profit for insuring a femal 50 years old in one year? (premium: $1150, lose $150,000)
+a <- -150000  #correspond with p (death)
+b <- +1150    #corespond with profit (premium), 1-p
+Ev <- a*p + b*(1-p)
+Ev
+
+### what is the standard error of benefit for 1 femal of 50 years old within a year.
+SE <- abs(b-a)*sqrt(p*(1-p))
+SE
+
+### the expected value of company for all 1000 insured people
+n <- 1000
+Ev_all <- n*(a*p + b*(1-p))
+
+### the standard error of company for all 1000 insured people
+SE_all <- sqrt(n)*( abs(b-a)*sqrt(p*(1-p)))
+
+### using CLT, calculate the probaility of losing money by insurance company for 1000 insurers. 
+pnorm(0,Ev_all,SE_all)
+```
+
+### Calculation the profitable premium for male of 50 years old:
+```{r}
+### what is the death probaility of death of a 50 years old female:
+p_male <- death_prob %>%
+  filter(sex=="Male"& age=="50") %>%
+  .$prob
+
+p_male
+
+### suppose that the company wants to have the expected value of profit of 700,000$ for insuring 1000 people who are male of 50 years old. 
+#Ev_male <- n(ap+b(1-p))  #b: premium   #a:150,000$ for death
+Ev_male <- 700000
+n <- 1000
+a_male <- -150000
+b_male <- ((Ev_male/n)-a*p_male)/(1-p_male)
+b_male
+
+### using the premium calculated for male, calculate teh standar error of sum of 1000 policies:
+SE_all_male <- sqrt(n)*abs(b_male-a_male)*sqrt(p_male*(1-p_male))
+SE_all_male
+
+### what is the probbaility of losing money by insurance company for insuring 1000 male of 50 years old?
+pnorm(0,Ev_male,SE_all_male)
+```
+
+### insurance artes:
+Insurance companies calculate the premimum and ... based in the rencet probability of death. However, it is possible due to an event, the probaility of death increases and company risk considerable amount of lose. 
+In the below situation, there is lethal pandemic situation and increases the probability of death for 50 years old to 0.015. because company was unable to predict this outbreak, it sold 1000, 150000 dollars  life insurance policies as premium of $1150. 
+
+```{r}
+### what is the expected value of sum of 1000 policies?
+p <- 0.015  # the probability of death
+a <- -150000
+b <- 1150
+n <- 1000
+Ev_new <- n*(a*p+b*(1-p))
+Ev_new
+
+### what is the standard error of the expected value of the company for 1000 policies?
+SE_new <- sqrt(n)*abs(b-a)*sqrt(p*(1-p))
+SE_new
+
+### what is the probability of compan's losing money?
+pnorm(0,Ev_new,SE_new )
+
+### suppose company can afford to sustan one-time losses of $1M. But, it will be out of market for larger of this amount. What is the probability of losing money more than $1M?
+pnorm(-10^6,Ev_new,SE_new)
+
+### for the death probability of p <- seq(.01, .03, .001), how much is the lowest death probbaility for which the chance of losing money exceed 90%?
+
+n <- 1000
+a <- -150000
+b <- 1150
+p <- seq(.01, .03, .001)
+
+p_lose <- sapply(p,function(p){
+  Ev <- n*(a*p+b*(1-p))
+  SE <- sqrt(n)*abs(b-a)*sqrt(p*(1-p))
+  pnorm(0,Ev,SE)
+})
+
+data.frame(p,p_lose) %>%
+  filter(p_lose > 0.90) %>%
+  pull(p) %>%
+  min()
+
+### for the death probaility of p <- seq(.01, .03, .0025), what is the lowest death probability for which the chance of losing more than $1 million exceeds 90%?
+p <- seq(.01, .03, .0025)
+p_lose_1M <- sapply(p,function(p){
+  Ev <- n*(a*p+b*(1-p))
+  SE <- sqrt(n)*abs(b-a)*sqrt(p*(1-p))
+  pnorm(-1000000,Ev,SE)
+})
+
+data.frame(p,p_lose_1M) %>%
+  filter(p_lose_1M > 0.90) %>%
+  pull(p) %>%
+  min()
+```
+### Using Monto-Carlo simualtion:
+define a sampling model that has the following properties:
+total profit over 1,000 loans with probability of claim p_loss = .015, loss of -$150,000 on a claim, and profit of $1,150 when there is no claim.
+```{r}
+### sampling model:
+n <- 1000
+loss <- -150000
+profit <- 1150
+p_loss <- 0.015
+
+### how much is the reported profit (or loss) in million?
+set.seed(25, sample.kind = "Rounding")  # based on question: 25
+X <- sample(c(loss,profit),n,replace=TRUE,prob=c(p_loss,1-p_loss)) #loss:p, corresponds 1
+sum(X)/10^6
+```
+```{r}
+### Monto-carlo Simulation: 
+#run the monto-carlo simulation with 10,000 repetition to simulate the range of profits/losses over 1,000 loans
+
+B <- 10000
+n <- 1000
+loss <- -150000
+profit <- 1150
+p_loss <- 0.015
+
+set.seed(27, sample.kind = "Rounding") # based on question: 27
+S_lose <- replicate(B,{
+  X <- sample(c(loss,profit),n,replace=TRUE,prob=c(p_loss,1-p_loss))
+  sum(X)
+})
+ 
+mean(S_lose < -1000000) # it means more than $1 M losing money (Be carful about negative numbers)
+```
 
