@@ -1,0 +1,176 @@
+---
+title: "Data_wrangling"
+author: "Elham Sharifin, this course is taken from Edx data wrangling course. all the key points exactly the same of the course. I solved the questions myself!"
+date: "4/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Key points: Introduction to wrnagling:
+- The first step in data analysis is importing, tidying and cleaning the data. This is the process of data wrangling.
+
+- Data analysis, for example checking correlations or creating visualizations, are done AFTER wrangling in which the data will be processed into a tidy format.
+
+- In this course, we cover several common steps of the data wrangling process: tidying data, string processing, html parsing, working with dates and times, and text mining.
+
+## Key points: Importing dat
+- Many datasets are stored in spreadsheets. A spreadsheet is essentially a file version of a data frame with rows and columns.
+
+- Spreadsheets have rows separated by returns and columns separated by a delimiter. The most common delimiters are comma, semicolon, white space and tab.
+
+- Many spreadsheets are raw text files and can be read with any basic text editor. However, some formats are proprietary and cannot be read with a text editor, such as Microsoft Excel files (.xls).
+
+- Most import functions assume that the first row of a spreadsheet file is a header with column names. To know if the file has a header, it helps to look at the file with a text editor before trying to import it.
+
+## Key points: Paths and working directories:
+- The working directory is where R looks for files and saves files by default.
+
+- See your working directory with getwd(). Change your working directory with setwd().
+
+- We suggest you create a directory for each project and keep your raw data inside that directory.
+
+- Use the file.path() function to generate a full path from a relative path and a file name. Use file.path() instead of paste() because file.path() is aware of your operating system and will use the correct slashes to navigate your machine.
+
+- The file.copy() function copies a file to a new path.
+```{r}
+#shows your working directory
+getwd() 
+
+#changing the working directory
+setwd()
+
+# it shows the path of raw data inside the dslabs package and list files 
+path <- system.file("extdata",package = "dslabs")
+path 
+list.files(path)
+
+# it will copy file from dslabs package to your working directory
+filename <- "murders.csv"
+fullpath <- file.path(path,filename)
+file.copy(fullpath,getwd())
+
+#it shows if file exist in your working directory or not?
+file.exists(filename)
+```
+```{r}
+# copying the data murder.csv to an existing folder named data
+getwd()
+filename <- "murders.csv"
+path <- system.file("extdata",package = "dslabs")
+
+
+# there are differnt ways for copying murders into data folder
+## way1:
+setwd("data")
+file.copy(file.path(path, filename), getwd()) 
+## way2:
+file.copy(file.path(path, "murders.csv"), file.path(getwd(), "data"))
+## way3:
+file.location <- file.path(system.file("extdata", package = "dslabs"), "murders.csv")
+file.destination <- file.path(getwd(), "data")
+file.copy(file.location, file.destination) 
+
+#way4: it does not work. it copies it into the parent directory
+file.copy(file.path(path, "murders.csv"), getwd()) 
+```
+
+## Key points:The readr and readxl Packages
+- readr is the tidyverse library that includes functions for reading data stored in text file spreadsheets into R. Functions in the package include:
+read_csv(): comma seperated values, csv format
+read_tsv(): tab delimited seperated values, tsv format
+read_delim():general text file format,must define delimiter,txt format
+read.csv2(): semicolon seperated values, csv format
+read.table():white space seperated values, txt format
+These differ by the delimiter they use to split columns.
+
+
+- The readxl package provides functions to read Microsoft Excel formatted files.
+read.excel: auto detect format. xlx, and xlsx formats
+read.xls: original format (xls)
+read.xlsx: new format, xlsx
+
+- The excel_sheets() function gives the names of the sheets in the Excel file. These names are passed to the sheet argument for the readxl functions read_excel(), read_xls() and read_xlsx().
+
+- The read_lines() function shows the first few lines of a file in R.
+
+```{r}
+library(dslabs)
+library(tidyverse)    # includes readr
+library(readxl)
+
+#it will investigate the first three lines
+read_lines("murders.csv",n_max=3)
+
+#read files in csv format
+dat <- read_csv(filename) #fiename from previous part
+
+# read file using fullpath
+dat <- read_csv(fullpath) 
+
+head(dat)  #if we run in R console: we can see that file is a tibble
+
+#example: 
+path <- system.file("extdata",package = "dslabs")
+files <- list.files(path)
+files
+
+filename <- "murders.csv"
+filename1 <- "life-expectancy-and-fertility-two-countries-example.csv"
+filename2 <- "fertility-two-countries-example.csv"
+dat <- read.csv(file.path(path,filename))
+dat1 <- read.csv(file.path(path,filename1))
+dat2 <- read.csv(file.path(path,filename2))
+
+## excel files: suppose we have an excel file names times and the second sheet named 2016. we can read the second sheet with the following methos:
+times_2016 <- read_excel("times.xlsx", sheet = 2) 
+times_2016 <- read_excel("times.xlsx", sheet = "2016") 
+```
+
+## Key point: Importing Data Using R-base Functions
+R-base import functions (read.csv(), read.table(), read.delim()) are different with read_... functions. R-base functions generate data frames rather than tibbles and character variables are converted to factors. This can be avoided by setting the argument stringsAsFactors=FALSE.
+```{r}
+filename <- "murders.csv"
+dat2 <- read.csv(filename)
+class(dat2)  #difference 1: we have data.frame not tibble
+class(dat2$region) #character variables are converted to factors
+
+#converting to factors can be prevented by:
+dat3 <- read.csv(filename,stringsAsFactors=FALSE)
+class(dat3$region)
+```
+
+## Key points: Downloading Files from the Internet
+- The read_csv() function and other import functions can read a URL directly.
+
+- If there are no variable names in the first row fo a dataset, we have to add col_names=FALSE to skip putting the first row as header
+
+- If you want to have a local copy of the file, you can use download.file().
+
+- tempdir() creates a directory with a name that is very unlikely not to be unique.
+
+- tempfile() creates a character string that is likely to be a unique filename.
+```{r}
+# reading data from internet
+url <- "https://raw.githubusercontent.com/rafalab/dslabs/master/inst/extdata/murders.csv"
+dat <- read_csv(url)
+download.file(url,"murders.csv") #downloading file on your computer
+tempfile() 
+tmp_filename <- tempfile() #give a temporary name
+download.file(url,tmp_filename)  #download it
+file.remove(tmp_filename) #remove the temporary file
+```
+### Exercise: importing data
+```{r}
+library(tidyverse)
+library(readr)
+
+# import the file in the following url: http://mlr.cs.umass.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data
+url <- "http://mlr.cs.umass.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data"
+dat <- read_csv(url,col_names=FALSE) #very important, bcd there is no header for this data
+ncol(dat)
+nrow(dat)
+```
+
