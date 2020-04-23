@@ -1724,7 +1724,7 @@ x/180000
 ## Assessment: Insurance companies
 Insurance companies must make a decision how much to charge as premiums for policies given estimates of the probability that an individual will collect on that policy. 
 An insurance company has a one-year life insurance policy that pays $150,000 for the event of death in a year. The premium for this policy is 1150 dollars for a women of age 50. suppose in the case of a claim for an event, the company forefit the premium and loses 150,000 dollars, and if theer is no claim, the company will earn 1150 dollars. The company plans to sell 1000 policicies to depographic. 
-The death_prob data from dslabs includes some information about the estimated probability of death (prob) whithin 1 year for various ages and sexex.s 
+The death_prob data from dslabs includes some information about the estimated probability of death (prob) whithin 1 year for various ages and sexes
 ```{r}
 library(tidyverse)
 library(dslabs)
@@ -1869,5 +1869,63 @@ S_lose <- replicate(B,{
 })
  
 mean(S_lose < -1000000) # it means more than $1 M losing money (Be carful about negative numbers)
+```
+### Assesment: Insurance due to pandemic 
+suppose that there is high demand for insuring due to a pandemic. The insurance company looking for a primium that ensure that the  probaility of lose of the company is less than 5%. assume that the death rate is 0.015.
+
+```{r}
+### calculate the premium required for 50% chance of losing money for 1000 policies. probbaility of loss is 0.015, and loss per cliam is -150,000$.
+p <- 0.015
+l <- -150000
+n <- 1000
+# x ? (premium)
+z <- qnorm(0.05)
+z
+x <- -l*(n*p-z*(sqrt(n*p*(1-p))))/{n*(1-p)+z*sqrt(n*p*(1-p))}
+x
+
+### expected profit per policy for this rate?
+Ev <- p*l + (1-p)*x
+Ev
+
+### expected profit for all 1000 policies?
+Ev_all <- n * (p*l + (1-p)*x)
+Ev_all
+
+### based on new premium x, run a monto carlo simulation with 10,000 repetition. what the probability of losing money for 1000 policies, death probaility of 0.015, claim of 150,000$, set.seed of 28?
+B <- 10000
+library(tidyverse)
+set.seed(28, sample.kind = "Rounding")
+S_losing <- replicate (B,{
+  draws<- sample(c(l,x),n,replace=TRUE,prob=c(p,1-p))
+  sum(draws)
+})
+
+Pr_losing <- mean(S_losing <0)
+Pr_losing
+
+### suppose the insurance company does not know id the pandemic deatn rate is stable or not. Therefore suppose p randomly change between -0.01, and 0.01. calculate the profit from premium x which previously calculated? loss per claim is 150,000$, B=10,000, set.seed od 29. 
+
+### how much is the expected value over 1000  policies?
+p <- 0.015
+
+B <- 10000
+set.seed(29, sample.kind = "Rounding")
+S_new_losing <- replicate (B,{
+  p_new <- p+sample(seq(-0.01,0.01,length=100),1)
+  draws_new<- sample(c(l,x),n,replace=TRUE,prob=c(p_new,1-p_new))
+  sum(draws_new)
+})
+
+### what is the expected profit
+mean(S_new_losing)  
+
+
+### what is the probbaility of losing money
+mean(S_new_losing<0)
+
+### what is the probaility of losing more than $1M?
+mean(S_new_losing > -10^6)
+
 ```
 
