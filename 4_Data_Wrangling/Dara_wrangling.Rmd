@@ -38,20 +38,24 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 #shows your working directory
 getwd() 
-
+```
+```{r}
 #changing the working directory
-setwd()
-
+#setwd()
+```
+```{r}
 # it shows the path of raw data inside the dslabs package and list files 
 path <- system.file("extdata",package = "dslabs")
 path 
 list.files(path)
-
+```
+```{r}
 # it will copy file from dslabs package to your working directory
 filename <- "murders.csv"
 fullpath <- file.path(path,filename)
 file.copy(fullpath,getwd())
-
+```
+```{r}
 #it shows if file exist in your working directory or not?
 file.exists(filename)
 ```
@@ -60,7 +64,8 @@ file.exists(filename)
 getwd()
 filename <- "murders.csv"
 path <- system.file("extdata",package = "dslabs")
-
+```
+```{r}
 
 # there are differnt ways for copying murders into data folder
 ## way1:
@@ -100,18 +105,23 @@ read.xlsx: new format, xlsx
 library(dslabs)
 library(tidyverse)    # includes readr
 library(readxl)
-
+```
+```{r}
 #it will investigate the first three lines
 read_lines("murders.csv",n_max=3)
-
+```
+```{r}
 #read files in csv format
 dat <- read_csv(filename) #fiename from previous part
-
+```
+```{r}
 # read file using fullpath
 dat <- read_csv(fullpath) 
-
+```
+```{r}
 head(dat)  #if we run in R console: we can see that file is a tibble
-
+```
+```{r}
 #example: 
 path <- system.file("extdata",package = "dslabs")
 files <- list.files(path)
@@ -125,8 +135,8 @@ dat1 <- read.csv(file.path(path,filename1))
 dat2 <- read.csv(file.path(path,filename2))
 
 ## excel files: suppose we have an excel file names times and the second sheet named 2016. we can read the second sheet with the following methos:
-times_2016 <- read_excel("times.xlsx", sheet = 2) 
-times_2016 <- read_excel("times.xlsx", sheet = "2016") 
+#times_2016 <- read_excel("times.xlsx", sheet = 2) 
+#times_2016 <- read_excel("times.xlsx", sheet = "2016") 
 ```
 
 ## Key point: Importing Data Using R-base Functions
@@ -136,7 +146,8 @@ filename <- "murders.csv"
 dat2 <- read.csv(filename)
 class(dat2)  #difference 1: we have data.frame not tibble
 class(dat2$region) #character variables are converted to factors
-
+```
+```{r}
 #converting to factors can be prevented by:
 dat3 <- read.csv(filename,stringsAsFactors=FALSE)
 class(dat3$region)
@@ -172,5 +183,273 @@ url <- "http://mlr.cs.umass.edu/ml/machine-learning-databases/breast-cancer-wisc
 dat <- read_csv(url,col_names=FALSE) #very important, bcd there is no header for this data
 ncol(dat)
 nrow(dat)
+```
+
+## Key points: Tidy Data:
+In tidy data, each row represents an observation and each column represents a different variable. very important!!!
+
+In wide data, 1)each row includes several observations and 2)one of the variables is stored in the header.
+
+```{r}
+# Fertility data (example of tidy data)
+library(tidyverse)
+library(dslabs)
+data(gapminder)
+```
+```{r}
+# creating and investigating a tidy data frame
+tidy_data <- gapminder %>%
+  filter(country %in% c("South Korea","Germany")) %>%
+  select(country,year,fertility)
+head(tidy_data)
+```
+```{r}
+#plotting fertility vs. year
+tidy_data %>%
+  filter(!is.na(fertility),!is.na(year)) %>%
+  ggplot(aes(year,fertility, color=country)) +
+  geom_point()
+```
+```{r}
+# import and investigate the original Gapminder data in wide format
+path <- system.file("extdata",package = "dslabs")
+list.files(path)
+filename <- file.path(path,"fertility-two-countries-example.csv")
+filename
+file.copy(file.path(path, "fertility-two-countries-example.csv"), file.path(getwd(), "data"))
+wide_data <- read_csv(filename) #same info but different format
+select(wide_data, country, `1960`:`1967`)
+```
+ 
+## Key points: Reshaping data
+- The tidyr package includes several functions that are useful for tidying data.
+
+- The gather() function converts wide data into tidy data. gather takes 4 arguments: (1) the data, (2) the name of the key column, (3) the name of the value column, and optionally (4) the names of any columns not to gather
+
+- The spread() function converts tidy data to wide data.
+
+```{r}
+## the original wide data
+library(tidyverse) 
+path <- system.file("extdata", package="dslabs")
+filename <- file.path(path,  "fertility-two-countries-example.csv")
+wide_data <- read_csv(filename)
+```
+```{r}
+## tidy data from dslab package
+tidy_data <- gapminder %>%
+  filter(country %in% c("South Korea","Germany")) %>%
+  select(country,year,fertility)
+head(tidy_data)
+```
+```{r}
+## gather wide data to make new tidy data (way 1)
+new_tidy_data <- wide_data %>%
+  gather(year,fertility,'1960':'2015')
+# This code will gather the years from 1960 to 2015 into a single column and create a single column called “fertility” that contains the fetrility rate for each country and each year.
+head(new_tidy_data)
+```
+```{r}
+## gather all columns except country (way 2)
+new_tidy_data <- wide_data %>%
+  gather(year,fertility,-country)
+head(new_tidy_data)
+```
+```{r}
+class(tidy_data$year)
+class(new_tidy_data$year)
+# the gather function assumes that column name are charactor and we need to convert the column to numbers!
+```
+```{r}
+## convert gathered column names to numeric:
+new_tidy_data <- wide_data %>%
+  gather(year,fertility,-country,convert=TRUE)
+head(new_tidy_data)
+
+class(new_tidy_data$year)
+```
+```{r}
+## now that the data are tidy, plotting
+new_tidy_data %>%
+  ggplot(aes(year,fertility,color=country)) +
+  geom_point()
+```
+```{r}
+## spread tidy data to generate wide data
+new_wide_data <- new_tidy_data %>%
+  spread(year,fertility)
+select(new_wide_data, country, '1960':'1967')
+
+```
+
+## Key points: Separate and Unite
+- The separate() function splits one column into two or more columns at a specified character that separates the variables. It has 3 argumnets: 1- the name of column to be seperated 2- the name to be used for the new column 3- charactor that seperates the variables
+
+- When there is an extra separation in some of the entries, use fill="right" to pad missing values with NAs, or use extra="merge" to keep extra elements together.
+
+- The unite() function combines two columns and adds a separating character.
+
+1_Importing data:
+```{r}
+## Import data:
+path <- system.file("extdata",package = "dslabs")
+list.files(path)
+filename <- file.path(path,"life-expectancy-and-fertility-two-countries-example.csv")
+raw_data <- read_csv(filename)
+select(raw_data,1:5)
+```
+2_gathering:
+```{r}
+## gather all columns but country
+dat <- raw_data %>% gather(key,value,-country)
+head(dat)
+dat$key[1:5]
+```
+3_seperating:
+```{r}
+## seperate on underscores
+dat %>% separate(key,c("year","variable_name"),"-")
+dat %>% separate(key,c("year","variable_name"))
+#error: it will seperate life_expectancy to two different parts and show only the first one
+```
+4_1: method 1 for tyding data:
+```{r}
+## way1_1: split on first underscore but keep life_expectancy merged 
+dat %>% 
+  separate(key,c("year","variable_name"), sep="_",extra="merge")
+```
+```{r}
+## way1_full code: seperate and then spread
+dat %>% 
+  separate(key,c("year","variable_name"), sep="_",extra="merge") %>%
+  spread("variable_name",value)
+```
+4_2: method 2 for tyding data (less efficient):
+```{r}
+## way2_1: split the variable to two different ones, NA(empty)
+dat %>% separate(key,c("year","first_variable_name","second_variable_name"),fill = "right")
+```
+```{r}
+## way2_2: seperate and then unite
+dat %>% separate(key,c("year","first_variable_name","second_variable_name"),fill = "right") %>%
+  unite(variable_name,"first_variable_name","second_variable_name",sep="_")
+```
+```{r}
+# way2_full code for tidying data (way2: using unite)
+dat %>% 
+  separate(key,c("year","first_variable_name","second_variable_name"),fill = "right") %>%
+  unite(variable_name,"first_variable_name","second_variable_name",sep="_") %>%
+  spread(variable_name,value) %>%
+  rename(fertility=fertility_NA)
+```
+
+### Exercise1 (Reshaping Data)
+For the data names times.csv, tidy the data? 
+and then return them to the wide data!
+```{r}
+## Import and read data:
+path <- getwd()
+list.files(path)
+filename <- file.path(path,"times.csv")
+x <- read_csv(filename)
+
+## tidying data
+tidy_data1 <- x %>% gather(year,time,'2015':'2017')
+
+## converting to wide data again
+tidy_data1 %>% spread(year,time)
+# it will create new columns for every year and spread the time values over those cells
+```
+
+### Exercise 2: 
+Suppose we have the US_disease data in the work directory, tydy the data in which all disease are put in one column.
+```{r}
+## Import and read data:
+path <- getwd()
+list.files(path)
+filename <- file.path(path,"US_disease.csv")
+y <- read_csv(filename)
+
+## tidying data:
+tidy_data2 <- y %>% gather(key=disease,value,'HepatitisA':'Rubella')
+```
+
+### exercise 3: tidy data that population and total be in different columns? and change the name of column to population and total
+```{r}
+## Import and read data:
+path <- getwd()
+list.files(path)
+filename <- file.path(path,"Population.csv")
+z <- read_csv(filename)
+
+## tidying data:
+tidy_data3 <- z %>% spread(key=var,value=people)
+```
+### Exercise 4: for the data of times2.csv in the working directory, in the best way tidy the data:
+```{r}
+## Import and read data:
+path <- getwd()
+list.files(path)
+filename <- file.path(path,"times2.csv")
+x4 <- read_csv(filename)
+
+## tidying data
+x4 %>% gather(key="key",value="value",-age_group) %>%
+    separate(key,c("year","variable_name"), sep="_") %>%
+  spread(variable_name,value)
+```
+
+### Exercise 5: tidy the dataset named basketbal with different columns for varaiables:
+```{r}
+## Import and read data:
+path <- getwd()
+filename <- file.path(path,"basketball.csv")
+Q <- read_csv(filename)
+
+## tidying data
+Q %>%
+  separate(key,c("name","variable_name"), sep="_",extra="merge") %>%
+  spread(variable_name,value)
+```
+
+### Exercise 6: Consider dataset co2 which comes with basic R. 
+This dataset is not tidy. becuase as seen, month is a variable and it should be in a column. also there are multiple observations in each wow. each observation should be different from another one. 
+```{r}
+## co2 concentration dataset:
+library(tidyverse)
+library(dslabs)
+co2
+
+co2_wide <- data.frame(matrix(co2,ncol=12,byrow=TRUE)) %>%
+  setNames(1:12) %>% mutate(year=as.character(1959:1997))
+co2_wide 
+
+co2_tidy <- gather(co2_wide,month,co2,-year)
+co2_tidy
+
+co2_tidy %>% ggplot(aes(as.numeric(month),co2,color=year)) + geom_line()
+```
+
+### Exercise 7: for the data of admission on the dslabs package: 
+```{r}
+## tidy data which has one row for each major:
+library(dslabs)
+data(admissions)
+head(admissions)
+
+dat <- admissions %>% select(-applicants)
+dat
+
+dat %>% spread("gender",admitted)
+```
+```{r}
+## using admission dataset, generate tmp which has major, gender, key and value as columns. 
+
+tmp <- gather(admissions, key, value, admitted:applicants)
+tmp
+
+## create a column from joining gender and key:
+tmp2 <- unite(tmp,column_name,c(key,gender))
+tmp2
 ```
 
