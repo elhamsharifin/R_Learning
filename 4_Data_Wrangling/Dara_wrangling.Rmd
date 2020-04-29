@@ -1346,10 +1346,324 @@ pattern9 <- "moo*"
 str_detect(animals, pattern9) #it will look for one m foloowed by zero, or more m
 ```
 ```{r}
+#Example 6:
+library(tidyverse)
 schools <- c("U. Kentucky","Univ New Hampshire","Univ. of Massachusetts"    ,"University Georgia","U California","California State University")
 
 ## clean the above string and convert every university symbol to University
-schools %>%
-  str_replace("^(A-Z)\\.*(A-Z)$","")
+schools %>% 
+  str_replace("U\\.|Univ\\.|Univ\\s+|U\\s+","University") %>%
+  str_replace("^University of","University") %>%
+  str_replace("^University\\s?","University of ")
+
+schools %>% 
+  str_replace("U\\.|Univ\\.|Univ\\s+|U\\s+","University") %>%
+  str_replace("^University of","University") %>%
+  str_replace("^University\\s?","University of ")
+
+
+schools %>% 
+    str_replace("^Univ\\.?\\s|^U\\.?\\s", "University ") %>% 
+    str_replace("^University of |^University ", "University of ")
+
+```
+```{r}
+#Example 7: 
+problems <- c("5.3", "5,5", "6 1", "5 .11", "5, 12")
+pattern_with_groups1 <- "^([4-7])[,\\.](\\d*)$"
+str_replace(problems, pattern_with_groups1, "\\1'\\2")
+
+#Example 8:
+problems <- c("5.3", "5,5", "6 1", "5 .11", "5, 12")
+pattern_with_groups2 <- "^([4-7])[,\\.\\s](\\d*)$"
+str_replace(problems, pattern_with_groups2, "\\1'\\2")
+```
+```{r}
+#example 9:
+yes <- c("5 feet 7inches", "5 7")
+no <- c("5ft 9 inches", "5 ft 9 inches")
+s <- c(yes, no)
+
+converted <- s %>% 
+  str_replace("\\s*(feet|foot|ft)\\s*", "'") %>% 
+  str_replace("\\s*(inches|in|''|\")\\s*", "") %>% 
+  str_replace("^([4-7])\\s*[,\\.\\s+]\\s*(\\d*)$", "\\1'\\2")
+
+converted
+
+pattern <- "^[4-7]\\s*'\\s*\\d{1,2}$"
+str_detect(converted, pattern)
 ```
 
+## Key Point: Separate with Regex
+The extract() function behaves similarly to the separate() function but allows extraction of groups from regular expressions.
+```{r}
+## example 1: Normally formatted height
+s <- c("5'10","6'1")
+tab <- data.frame(x=s)
+
+# the function seperate and extract work similarly for this format
+tab %>% separate(x,c("feet","inches"),"'")
+tab %>% extract(x,c("feet","inches"),regex="(\\d)\'(\\d{1,2})")
+```
+```{r}
+## example 2: Incorrected formatted height
+s <- c("5'10","6'1\"","5'8inches")
+tab <- data.frame(x=s)
+
+# The function separate not good: it leaves extra characters
+# The function extract works good: it keeps only the digits bcs of regex groups
+tab %>% separate(x,c("feet","inches"),sep="'",fill="right")
+tab %>% extract(x,c("feet","inches"),regex="(\\d)'(\\d{1,2})")
+```
+### In the heigth problem
+there are still some data that our pattern does not count them: some of them does not worthy to take tim but for more practice, they are great:
+
+1- many students entered exatly 5, or 6 feet and no inches. ex: 5' but our pattern only count the ones which have one or two didgit as inches
+2- some students only entered exact 5, or 6 without any symbol. ex: 5
+3- some students eneted inches with decimal. ex: 5'7.4". But our pattern only look for 2 digits.
+4- some data have some spaces at the end 5  '  9.
+5- some entries are eneted based on meter and some of them used Eurpoean decimal: ex: 1.7
+6- some (two) studnets eneted cm.
+7- one students spell out the whol  number. ex: five feet seven inches
+
+```{r}
+## case2:
+yes <- c("5", "6", "5")
+no <- c("5'", "5''", "5'4", "5'7.4")
+s <- c(yes, no)
+str_replace(s,"^([4-7])$","\\1'0")
+```
+```{r}
+## case 1,2:
+str_replace(s,"^([5-6])'?$","\\1'0")
+# we only permitted 5, or 6 not 4, and 7: because heights of exact 5 or 6 are very common. However, heights of exacty 4 or 7 are very rare. although the height of 84 is possible but we assume that someone who eneterd 7, eneted incorrectly.
+```
+```{r}
+## case 3:  5'7.4" it will include the entries which allow decimal not just digits in second group 
+pattern <- "^[4-7]\\s*'\\s*(\\d+\\.?\\d*)$" 
+str_detect(s, pattern)
+```
+```{r}
+## case 5: it is simliar to the approach in which x.y concerted to x'y. However, the first number only can be 0 or 1
+yes <- c("1,7", "1, 8", "2, " )
+no <- c("5,8", "5,3,2", "1.7")
+s <- c(yes, no)
+str_replace(s,"^([12])\\s*,\\s*(\\d*)$","\\1\\.\\2")
+#later we will see if they are meter or inches
+```
+
+### Trimming:
+spaces at the beginning or end of a string is very uninformative and also sometimes deceptive as they cannot be seen and distinguished.and because it is very common problem, function str_trim() is defines for this purpose.
+```{r}
+s <- "Hi "
+cat(s)
+identical(s,"Hi")
+
+#function str_trim()
+str_trim(" 5 ' 8 ")
+```
+### to upper and lower case:
+we can use function str_to_lower()
+```{r}
+s <- c("Five feet seven inches")
+str_to_lower(s)
+```
+
+### put all to gether fot problematic cases of height data:
+```{r}
+convert_format <- function(s){
+  s %>%
+    str_replace("feet|foot|ft", "'") %>% #convert feet symbols to '
+    str_replace_all("inches|in|''|\"|cm|and", "") %>%  #remove inches and other symbols
+    str_replace("^([4-7])\\s*[,\\.\\s+]\\s*(\\d*)$", "\\1'\\2") %>% #change x.y, x,y x y
+    str_replace("^([56])'?$", "\\1'0") %>% #add 0 when to 5 or 6
+    str_replace("^([12])\\s*,\\s*(\\d*)$", "\\1\\.\\2") %>% #change european decimal
+    str_trim() #remove extra space
+}
+
+## writing a function which convert words to number
+
+words_to_numbers <- function(s){
+  str_to_lower(s) %>%  
+    str_replace_all("zero", "0") %>%
+    str_replace_all("one", "1") %>%
+    str_replace_all("two", "2") %>%
+    str_replace_all("three", "3") %>%
+    str_replace_all("four", "4") %>%
+    str_replace_all("five", "5") %>%
+    str_replace_all("six", "6") %>%
+    str_replace_all("seven", "7") %>%
+    str_replace_all("eight", "8") %>%
+    str_replace_all("nine", "9") %>%
+    str_replace_all("ten", "10") %>%
+    str_replace_all("eleven", "11")
+}
+
+## problems:
+library(dslabs)
+library(tidyverse)
+#load raw data
+data(reported_heights)
+
+not_inches_or_cm <- function(x,smallest=50,tallest=84){
+  inches <- suppressWarnings(as.numeric(x))
+  ind <- !is.na(inches) &   #the entries that are not NA
+    ((inches>=smallest & inches<=tallest) |
+       (inches/2.54>=smallest & inches/2.54<=tallest))
+  !ind  #everything except ind
+}
+
+## identify entries with problems
+problems <- reported_heights %>%
+  filter(not_inches_or_cm(height)) %>%
+  .$height
+
+length(problems)
+```
+Now, applying the above functions:
+```{r}
+## showing the remaining problems that are nor similar to our format, (x'y)
+converted <- problems %>% words_to_numbers %>% convert_format 
+remaining_problems <- converted[not_inches_or_cm(converted)]
+pattern <- "^[4-7]\\s*'\\s*\\d+\\.?\\d*$"
+index <- str_detect(remaining_problems,pattern)
+remaining_problems[!index]
+```
+
+## Putting all together: (height problem)
+```{r}
+pattern <- "^([4-7])\\s*'\\s*(\\d+\\.?\\d*)$"
+shortest <- 50
+tallest <- 84
+new_height <- reported_heights %>%
+  mutate(original=height,
+         height=words_to_numbers(height) %>% convert_format()) %>%
+  extract(height,c("feet","inches"),regex=pattern,remove=FALSE) %>%
+  mutate_at(c("height","feet","inches"),as.numeric) %>%
+  mutate(guess=12*feet+inches) %>%
+  mutate(height=case_when(
+    !is.na(height) & between(height,shortest,tallest) ~ height,
+    !is.na(height) & between(height/2.54,shortest,tallest) ~ height/2.54,
+    !is.na(height) & between(height*100/2.54,shortest,tallest) ~ height*100/2.54,
+    !is.na(guess) & inches<12 & between(guess,shortest,tallest) ~ guess,
+    TRUE~as.numeric(NA))) %>%
+  select(-guess)
+
+## now, we can check all the entries which we converted:
+not_inches <- function(x,smallest=50,tallest=84){
+  inches <- suppressWarnings(as.numeric(x))
+  ind <- is.na(inches) | inches < smallest | inches > tallest
+  ind
+}
+
+new_heights %>%
+  filter(not_inches(original)) %>%
+  select(original,height) %>%
+  arrange(height) %>%
+  view()
+```
+```{r}
+## finding the shortest students in our data:
+new_heights %>% arrange(height) %>% head(n=7)
+
+## the shortest heights such as 50,51, .. are very low and maybe students wanted to enter 5 foot but he inchered 50. However, we have to leave it because we ar enot sure about this!
+```
+
+## Key Points: string splitting
+- The function str_split() splits a string into a character vector on a delimiter (such as a comma, space or underscore). By default, str_split() generates a list with one element for each original string. Use the function argument simplify=TRUE to have str_split() return a matrix instead.
+
+- The map() function from the purrr package applies the same function to each element of a list. To extract the ith entry of each element x, use map(x, i).
+
+- map() always returns a list. Use map_chr() to return a character vector and map_int() to return an integer.
+
+```{r}
+## suppose we do not access to csv file and instead we have a text file and we want to extract some data:
+# reading the raw data (murders) line by line
+filename <- system.file("extdata/murders.csv",package="dslabs")
+lines <- readLines(filename)
+lines %>% head()
+
+#spliting lines with comma and removing the raw of column name
+x <- str_split(lines,",")
+x %>% head()
+col_names <- x[[1]]
+x <- x[-1]
+head(x)  #this is list
+
+# extracting first element of each list: (and then converting list to data.frame)
+library(purrr)
+map(x,function(y) y[1]) %>% head()
+map(x,1) %>% head()
+```
+```{r}
+## extracting column 1-5 as charactor and converting to differnt format
+dat <- data.frame(parse_guess(map_chr(x,1)),  #returns a charactor vector
+                  parse_guess(map_chr(x,2)),
+                  parse_guess(map_chr(x,3)),
+                  parse_guess(map_chr(x,4)),
+                  parse_guess(map_chr(x,5))) %>%
+  setNames(col_names) 
+dat %>% head()
+```
+```{r}
+##A method which is more efficient:
+dat <- x %>%
+  transpose() %>%
+  map(~parse_guess(unlist(.))) %>%
+  setNames(col_names) %>%
+  as.data.frame()
+```
+```{r}
+filename <- system.file("extdata/murders.csv",package="dslabs")
+lines <- readLines(filename)
+
+# "simplify" argument makes str_split return a matrix instead of a list
+x <- str_split(lines,",",simplify=TRUE)
+col_names <- x[1,]
+x <- x[-1,]
+
+x %>% as_data_frame() %>%
+  setNames(col_names) %>%
+  mutate_all(parse_guess)
+```
+```{r}
+x <- str_split(lines, ",", simplify = TRUE) 
+col_names <- x[1,]
+x <- x[-1,]
+x %>% as_data_frame() %>%
+  setNames(col_names) %>%
+  mutate_all(parse_guess)
+```
+
+## Extracting a table from PDF file: (Case Study)
+We are going to extract table from one of dslabs dataset, scientific funding rates by gender in the Netherlands. 
+
+```{r}
+## loading data
+library(dslabs)
+library(tidyverse)
+data("research_funding_rates")
+research_funding_rates
+```
+
+this data are extracted from a paper: we are going to wrangle the data using R:
+```{r}
+## downloading data
+library("pdftools")
+temp_file <- tempfile()
+url <- "https://www.pnas.org/content/suppl/2015/09/16/1510159112.DCSupplemental/pnas.201510159SI.pdf"
+download.file(url,temp_file)
+txt <- pdf_text(temp_file) #it does not work good here, error!!!
+file.remove(temp_file)
+```
+```{r}
+## By investigating the object text, we understand that it is a charactor vector with an entery for each page. The page 2 is the page we want to keep:
+raw_data_research_funding_rates <- txt[2]  #dies not work! error!
+```
+Becaus ethere are some error associated with pdf_text, we use the raw data stored in the dslabs package:
+```{r}
+## the above steps was only for better learning but this data include in dslab:
+data("raw_data_research_funding_rates")
+raw_data_research_funding_rates
+```
