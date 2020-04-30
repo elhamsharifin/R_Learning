@@ -220,7 +220,7 @@ file.copy(file.path(path, "fertility-two-countries-example.csv"), file.path(getw
 wide_data <- read_csv(filename) #same info but different format
 select(wide_data, country, `1960`:`1967`)
 ```
- 
+
 ## Key points: Reshaping data
 - The tidyr package includes several functions that are useful for tidying data.
 
@@ -1664,6 +1664,189 @@ raw_data_research_funding_rates <- txt[2]  #dies not work! error!
 Becaus ethere are some error associated with pdf_text, we use the raw data stored in the dslabs package:
 ```{r}
 ## the above steps was only for better learning but this data include in dslab:
+library(dslabs)
 data("raw_data_research_funding_rates")
-raw_data_research_funding_rates
+raw_data_research_funding_rates %>% head()
+# as seen, this is a string in which every line inclusing table raw are seperated by \n.
+
+## creating a list:
+tab <- str_split(raw_data_research_funding_rates,"\n")
+
+## as we can see, we put all data in one column with difeernt raws.
+tab <- tab[[1]]
+tab %>% head()
+
+## extracting the column names stored in raws 3, 4
+the_names_1 <- tab[3]
+the_names_2 <- tab[4]
 ```
+```{r}
+## cleaning name column: part 1
+the_names_1 <- the_names_1 %>%
+  str_trim() %>%
+  str_replace_all(",\\s.","") %>%   #\\s. : removing anything following the comma
+  str_split("\\s{2,}",simplify=TRUE)
+the_names_1
+```
+```{r}
+## cleaning name column: part 2
+ the_names_2 <- the_names_2 %>%
+  str_trim() %>%
+  str_split("\\s+",simplify=TRUE)
+the_names_2
+```
+```{r}
+##joining the name column 1,2:
+tmp_names <- str_c(rep(the_names_1,each=3),the_names_2[-1],sep="_")
+tmp_names
+the_names <- c(the_names_2[1],tmp_names) %>%
+  str_to_lower() %>%
+  str_replace_all("\\s","_")
+the_names
+```
+```{r}
+## cleaning the real data:
+new_research_funding_rates <- tab[6:14] %>%  #not include total raw
+  str_trim() %>%
+  str_split("\\s{2,}",simplify=TRUE) %>%
+  data.frame(stringsAsFactors = FALSE) %>%
+  setNames(the_names) %>%
+  mutate_at(-1,parse_number) #it will guess the type of data except column 1
+
+head(new_research_funding_rate)
+```
+```{r}
+## the new table is a s the same of dataframe stored in our package:
+identical(research_funding_rates, new_research_funding_rates)
+```
+
+## Key points: recoding
+- Change long factor names with the recode() function from the tidyverse. 
+
+- Other similar functions include recode_factor() and fct_recoder() in the forcats package in the tidyverse. The same result could be obtained using the case_when() function, but recode() is more efficient to write.
+
+```{r}
+## Life expectancy timeseries for Carabbean countries:
+library(dslabs)
+data(gapminder)
+
+## showing gapminder data and long names that are ineffcient
+gapminder %>%
+  filter(region=="Caribbean") %>%
+  ggplot(aes(year,life_expectancy,color=country)) +
+  geom_line()
+```
+```{r}
+## long name countries:
+gapminder %>%
+    filter(region=="Caribbean") %>%
+  filter(str_length(country)>=12) %>%
+  distinct(country)
+```
+```{r}
+## changing the name of countries that are long to shorter names.
+gapminder %>% filter(region=="Caribbean") %>%
+  mutate(country=recode(country,
+                          'Antigua and Barbuda'="Barbuda",
+                          'Dominican Republic' = "DR",
+                          'St. Vincent and the Grenadines' = "St. Vincent",
+                          'Trinidad and Tobago' = "Trinidad")) %>%
+  ggplot(aes(year,life_expectancy,color=country)) +
+  geom_line()
+```
+## Exercise: 
+for the data of gapminder, for the countries that are more than 12 charctors in the middle africa, use their abbriviation instead of their name in a new column of short_name:
+
+```{r}
+library(dslabs)
+data("gapminder")
+#head(gapminder)
+
+gapminder %>% filter(region=="Middle Africa",str_length(country)>12)
+gapminder %>% filter(region=="Middle Africa") %>%
+  mutate(short_name=recode(country, 
+                                "Central African Republic" = "CAR", 
+                                "Congo, Dem. Rep." = "DRC",
+                                "Equatorial Guinea" = "Eq. Guinea"
+             
+  ))
+  
+```
+## Exercise:
+```{r}
+## clean the following dataset in which decimal places in the third column with desimal symbol:
+
+s <- c("5'10", "6'1\"", "5'8inches", "5'7.5")
+tab <- data.frame(x=s)
+extract(data=tab,col=x,into=c("feet","inches","decimals"),
+        regex="(\\d)'(\\d{1,2})(\\.\\d)?")
+```
+```{r}
+## clean the folloing dataset and put every name in separate column:
+staff_day <- data.frame(day=c("Monday","Tuesday"),staff=c("Mandy, Chris and Laura","Steve, Ruth and Frank"),stringsAsFactors=FALSE)
+staff_day
+```
+```{r}
+## put every name in separate column
+str_split(staff_day$staff,", | and ")
+str_split(staff_day$staff,",\\s|\\sand\\s")
+str_split(staff_day$staff,"\\s?(,|and)\\s?")
+```
+```{r}
+## put all staff only in two columns:
+x <- staff_day %>% 
+  mutate(staff = str_split(staff, ", | and ")) %>% 
+  unnest()
+x
+```
+## Exercise:
+Import raw Brexit referendum polling data from Wikipedia.
+```{r}
+library(rvest)
+library(tidyverse)
+library(stringr)
+url <- "https://en.wikipedia.org/w/index.php?title=Opinion_polling_for_the_United_Kingdom_European_Union_membership_referendum&oldid=896735054"
+tab <- read_html(url) %>% html_nodes("table")
+polls <- tab[[5]] %>% html_table(fill=TRUE)
+```
+1- filter the raws that in their remain column, there is no data?
+```{r}
+## method1: (Eli) updating column name:
+colNmaes <- c("dates", "remain", "leave", "undecided", "lead", "samplesize", "pollster", "poll_type", "notes")
+polls_new <- polls %>%
+  setNames(colNmaes) %>%
+  filter(str_detect(remain,"%$"))
+```
+```{r}
+#method2 (edx)
+names(polls) <- c("dates", "remain", "leave", "undecided", "lead", "samplesize", "pollster", "poll_type", "notes")
+polls <- polls[str_detect(polls$remain, "%"),-9] #-9: the name of columns
+nrow(polls)
+```
+2- for the remain and leave columns, which have a format like "54.6%", write a command which show the remain column a number between 0,1:
+```{r}
+names(polls) <- c("dates", "remain", "leave", "undecided", "lead", "samplesize", "pollster", "poll_type", "notes")
+polls <- polls[str_detect(polls$remain, "%"),-9] #-9: the name of columns
+
+x1 <- as.numeric(str_replace(polls$remain,"%",""))/100
+x2 <- parse_number(polls$remain)/100
+#str_remove(polls$remain, "%")/100  #function str_remove works great but bcs it is not numeric, we can devide by 100
+```
+3- for the undecided column, some of the values are N/A (when total of remain and leave is 100%). they should be zero instead of N/A. convert N/A to 0:
+```{r}
+str_replace(polls$undecided, "N/A", "0")
+```
+4- the format of "dates" is like 25-26 April, or 29 Mar–3 Apr where the start date and end data are reported. Write command for extracting the end day and month from dates. 
+note: the end date has a number with one or two digits, followed by a space, followed by the month as 1 or more letters (either capital or lowercase). In these data, all month abb or names have 3, 4 or 5 letters.
+```{r}
+x <- c("25-26 April","29 Mar–3 Apr")
+pattern <- "\\d{1,2}\\s[a-zA-Z]+"
+str_detect(x,pattern)
+pattern1 <- "\\d+\\s[a-zA-Z]{3,5}"
+str_detect(x,pattern1)
+pattern2 <- "[0-9]+\\s[a-zA-Z]+"
+str_detect(x,pattern2)
+pattern3 <- "\\d+\\s[a-zA-Z]+"
+str_detect(x,pattern3)
+```
+
