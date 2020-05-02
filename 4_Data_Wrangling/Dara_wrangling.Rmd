@@ -1850,3 +1850,387 @@ pattern3 <- "\\d+\\s[a-zA-Z]+"
 str_detect(x,pattern3)
 ```
 
+## key points: Data, time, and text mining:
+- compute languages usually use January 1, 1970 as epoch!
+
+- Dates are a separate data type in R.The tidyverse includes functionality for dealing with dates through the lubridate package. 
+
+- Extract the year, month and day from a date object with the year(), month() and day() functions.
+
+- Parsers convert strings into dates with the standard YYYY-MM-DD format (ISO 8601 format). Use the parser with the name corresponding to the string format of year, month and day (ymd(), ydm(), myd(), mdy(), dmy(), dym()).
+
+- Get the current time with the Sys.time() function. Use the now() function instead to specify a time zone.
+
+- You can extract values from time objects with the hour(), minute() and second() functions.
+
+- Parsers convert strings into times (for example, hms()). Parsers can also create combined date-time objects (for example, mdy_hms()).
+
+```{r}
+## inspecting the startdate column of 2016 polls data
+library(dslabs)
+library(tidyverse)
+data("polls_us_election_2016")
+polls_us_election_2016$startdate %>% head()
+class(polls_us_election_2016$startdate) #class is date
+as.numeric(polls_us_election_2016$startdate) %>% head()
+```
+```{r}
+## ggplot is aware about dates
+polls_us_election_2016 %>% filter(pollster=="Ipsos" & state=="U.S.") %>%
+  ggplot(aes(startdate,rawpoll_trump)) +
+  geom_line()
+```
+```{r}
+## lubridate is tidyverse date package
+library(lubridate)
+
+## selcting some random dates 
+set.seed(2)
+dates <- sample(polls_us_election_2016$startdate,10) %>% sort
+dates
+```
+```{r}
+## extracting day,month, and year from date strings
+data.frame(date=days(dates),
+           month=month(dates),
+           day=day(dates),
+           year=year(dates))
+
+month(dates,label=TRUE) #extract month labels
+```
+
+```{r}
+## ymd() works on different date styles
+x <- c(20090101, "2009-01-02", "2009 01 03", "2009-1-4",
+       "2009-1, 5", "Created on 2009 1 6", "200901 !!! 07")
+ymd(x)
+```
+```{r}
+## various parsers extract day,month, and year in different orders
+x <- "09/01/02"
+ymd(x) #it assumed standard YYYY-MM-DD format ymd:year,month,day
+mdy(x)
+dmy(x)
+dym(x)
+```
+```{r}
+## current ime
+Sys.time() #current time
+now()      #current time in your timezone
+now("GMT") #current time in GMT such as London
+now("Asia/Tehran")
+OlsonNames() %>% head() #all the available timezones
+
+## Extracting hours, minutes, and seconds from current time
+now() %>% hour()
+now() %>% minute()
+now() %>% second()
+```
+```{r}
+##parse time: converting strings into times
+x <- c("12:34:53")
+hms(x)
+
+## parse datetime:
+x <- "Nov/2/2012 12:34:56"
+mdy_hms(x)
+```
+
+## Key points: Text mining (The best resource: https://www.tidytextmining.com/)
+- The tidytext package helps us convert free form text into a tidy table.
+
+- Use unnest_tokens() to extract individual words and other meaningful chunks of text.
+
+- Sentiment analysis assigns emotions or a positive/negative score to tokens. You can extract sentiments using get_sentiments(). Common lexicons for sentiment analysis are "bing", "afinn", "nrc" and "loughran".
+
+- some data are numerical but some of them are text such as: sentiment analysis, counter-terrorism-analysis, cybre-crime prevention. In these kinds of data, they are composed on free form of text. We want to extract insights from these data.
+
+Case_Study: Trump tweets: in 2016 US election, Trump used Tweeter to comminicate with voters. on August 2016, Todd Vaziri tweeted that "Every non-hyperbolic tweet is from iPhone (his staff). Every hyperbolic tweet is from Android (from him)."  Data scientist David Robinson conducted an analysis to determine if data supported this claim.
+
+_ we can use rtweet package to extract Trump tweets from tweeter. However, his tweets are available in http://www.trumptwitterarchive.com/.
+
+- required libararies:
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(scales)
+set.seed(1)
+```
+- Extracting Trump's tweets from the below website:
+```{r}
+url <- 'http://www.trumptwitterarchive.com/data/realdonaldtrump/%s.json'
+trump_tweets <- map(2009:2017, ~sprintf(url, .x)) %>%
+  map_df(jsonlite::fromJSON, simplifyDataFrame = TRUE) %>%
+  filter(!is_retweet & !str_detect(text, '^"')) %>%
+  mutate(created_at = parse_date_time(created_at, orders = "a b! d! H!:M!:S! z!* Y!", tz="EST")) 
+```
+- for more convenience, we use data stored in dslabs
+?trump_tweets: gives us information about the variables in trump tweets data
+```{r}
+library(dslabs)
+data("trump_tweets")
+head(trump_tweets)
+names(trump_tweets)  #the name of columns
+
+#text variable: shows the text of each tweet
+trump_tweets %>% select(text) %>% head  
+
+#source variable: tells us the device is utilied to compose and upload each tweet
+trump_tweets %>% count(source) %>% arrange(desc(n))  
+
+# using extract to remove "Twitter for" part of the source and filter out retweets
+trump_tweets %>% 
+  extract(source, "source", "Twitter for (.*)") %>%
+  count(source)
+```
+by the flolowing table, we are going to undestand whats going on during campaign (from the day Trump announced his campaign to election day). 
+```{r}
+campaign_tweets <- trump_tweets %>% 
+  extract(source, "source", "Twitter for (.*)") %>%
+  filter(source %in% c("Android", "iPhone") &
+           created_at >= ymd("2015-06-17") & 
+           created_at < ymd("2016-11-08")) %>%
+  filter(!is_retweet) %>%
+  arrange(created_at)
+```
+Now, we can use data visualization to see the possibility of tweeting two different groups of tweets from two different devices during campaign. For each tweet, we will extract the hour (in East Coast (EST)) of tweeting. and then we will calculate the proportion of tweets at each hour for each device. 
+
+```{r}
+ds_theme_set()
+campaign_tweets %>%
+  mutate(hour = hour(with_tz(created_at, "EST"))) %>%
+  count(source, hour) %>%
+  group_by(source) %>%
+  mutate(percent = n / sum(n)) %>%
+  ungroup %>%
+  ggplot(aes(hour, percent, color = source)) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = percent_format()) +
+  labs(x = "Hour of day (EST)",
+       y = "% of tweets",
+       color = "")
+```
+It is noticiable that ther is a big pick for the android in around 6-8 AM. There is a clear different in the patterens. We will assume that two differnt entities are using these two devices for tweeting. Now, we want to undestance the difference between two tweets. The tidytext package will be introduced and used later. 
+
+### Text as data (tidytext package):
+The tidytext package helps us convert free from text into a tidy table. Data in this format enables data visualization and applying statistical techniques more effciient and easier.
+
+```{r}
+## tidytext package for tidy text data:
+library(tidytext)
+```
+
+The main function for this purpose is unnest_tocken(). Tocken is the units whcih are considered to be a data point. The most common tokens are words. However, they also can be single characters, ngrams, sentences, lines, or a petteren defined by a regex. The fueach one gets a raw in the new table. For example:
+
+```{r}
+example <- data_frame(line = c(1, 2, 3, 4),
+                      text = c("Roses are red,", "Violets are blue,", "Sugar is sweet,", "And so are you."))
+example
+```
+```{r}
+example %>% unnest_tokens(word, text,token="sentences") 
+example %>% unnest_tokens(word, text) #example: data_frame, word:output, text:input
+```
+now for the tweet number 3008:
+```{r}
+i <- 3008
+campaign_tweets$text[i]
+campaign_tweets[i,] %>% 
+  unnest_tokens(word, text) %>%
+  select(word)
+```
+As seen, the function is converting tokens into words and stripts characters whcih are important to twitter such as # and @. Note a token in twitter is different than the token in regular english. Therefore, instead of using the default token, words, we define a regex that captures twitter character. The pattern appears complex but all we are defining is a patter that starts with @, # or neither and is followed by any combination of letters or digits:
+```{r}
+pattern <- "([^A-Za-z\\d#@']|'(?![A-Za-z\\d#@]))"
+```
+now using unnest_tokens() function with the regex option, we can extract the hashtags and mentions appropriately:
+```{r}
+campaign_tweets[i,] %>% 
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  select(word)
+```
+Another minor adjustment: removing the links to pictures
+```{r}
+campaign_tweets[i,] %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  select(word)
+```
+now, extracting words from all tweets:
+```{r}
+tweet_words <- campaign_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) 
+```
+now, we can  answer questions such as "what are the most commonly used words?"
+```{r}
+tweet_words %>% 
+  count(word) %>%
+  arrange(desc(n))
+```
+It is not surprising that these are the top words. The top words are not informative. The tidytext package has database of these commonly used words, referred to as stop words, in text mining:
+```{r}
+stop_words
+```
+with filtering out rows representing stop words with filter(!word %in% stop_words$word), we will have:
+```{r}
+tweet_words <- campaign_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word ) 
+```
+ending up with a much more informative set of top 10 tweeted words:
+```{r}
+tweet_words %>% 
+  count(word) %>%
+  top_n(10, n) %>%
+  mutate(word = reorder(word, n)) %>%
+  arrange(desc(n))
+```
+some of theresulting words (not show here) shows a couple of unwanted characteristics in our tokens. 
+First, some of our tokens are just numbers (years for example). We want to remove these and we can find them using the regex ^\d+$.
+Second, some of our tokens come from a quote and they start with '. We want to remove the ' when it's at the start of a word, so we will use str_replace(). 
+We add these two lines to the code above to generate our final table:
+
+```{r}
+tweet_words <- campaign_tweets %>% 
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))  %>%
+  unnest_tokens(word, text, token = "regex", pattern = pattern) %>%
+  filter(!word %in% stop_words$word &
+           !str_detect(word, "^\\d+$")) %>%
+  mutate(word = str_replace(word, "^'", ""))
+```
+
+Now after gathering all our words in a table, and information about whcih device was utilized to compose the tweet they came from, we can start exploring which words are more common in comparison between Android to iPhone.
+
+For each word we want to know if it is more likely to come from an Android tweet or an iPhone tweet.
+previously, We introduced the odds ratio, a summary statistic useful for quantifying these differences. For each device and a given word, let's call it y, we compute the odds or the ratio between the proportion of words that are y and not y and compute the ratio of those odds.
+Here we will have many proportions that are 0 so we use the 0.5 correction.
+```{r}
+android_iphone_or <- tweet_words %>%
+  count(word, source) %>%
+  spread(source, n, fill = 0) %>%
+  mutate(or = (Android + 0.5) / (sum(Android) - Android + 0.5) / 
+           ( (iPhone + 0.5) / (sum(iPhone) - iPhone + 0.5)))
+android_iphone_or %>% arrange(desc(or))
+android_iphone_or %>% arrange(or)
+```
+based on that several of these words are overall low frequency words we can impose a filter based on the total frequency like this:
+```{r}
+android_iphone_or %>% filter(Android+iPhone > 100) %>%
+  arrange(desc(or))
+```
+```{r}
+android_iphone_or %>% filter(Android+iPhone > 100) %>%
+  arrange(or)
+```
+We already see such a pattern in the types of words are tweeted more in one device compare to the another one. However, we are interested in the tone not the specific words. 
+Vaziri's assertion is that the Android tweets are more hyperbolic. So how can we check this with data? Hyperbolic is a hard sentiment to extract from words as it relies on interpreting phrases. However, words can be associated to more basic sentiment such as as anger, fear, joy and surprise. In the next section we demonstrate basic sentiment analysis.
+
+### Setiments anaylysis:
+1- first step in sentiment analysis is: assigning a sentiment to each word
+(he tidytext package includes several maps or lexicons in the object sentiments)
+
+```{r}
+sentiments
+```
+There are different lexicons in tidytext package giving you different sentiments. 
+- the "bing" sentiment devides words into positive and negative
+```{r}
+get_sentiments("bing")
+```
+- AFINN lexicon: assigns a score between -5 and 5, with -5 the most negative and 5 the most positive.
+```{r}
+#install.packages("textdata") #it needed to be install for using afinn
+get_sentiments("afinn") #be careful about the selction. It will ask you something in the console.
+```
+The loughran and nrc lexicons provide several different sentiments:
+```{r}
+get_sentiments("loughran") %>% count(sentiment)
+get_sentiments("nrc") %>% count(sentiment)
+```
+?sentiments to see how these are developed!
+
+For the analysis of the tweets, we are interested in understanding the different sentiments of each tweet, so we will use the nrc.
+lexicon:
+
+```{r}
+nrc <- get_sentiments("nrc") %>%
+  select(word, sentiment)
+```
+The words and sentiments can be combined using inner_join(), which will only keep words associated with a sentiment. 
+Here are 10 random words extracted from the tweets:
+```{r}
+tweet_words %>% inner_join(nrc, by = "word") %>% 
+  select(source, word, sentiment) %>% sample_n(10)
+```
+Now, everythind is ready for a quantitative analysis to compare Android and iphone by comparing the sentiments of the tweets posted from each device. So, we do this wth tweet analysis, and assign a sentiment to each tweet. However, it is somewhat complaex becaus eeach twwt will have several sentiments to which attached. In fact, one for every word appearing in the lexicon. For illustrative purposes, we will perform a much simpler analysis: we will count and compare the frequecies of each sentimen appears for each device. 
+```{r}
+sentiment_counts <- tweet_words %>%
+  left_join(nrc, by = "word") %>%
+  count(source, sentiment) %>%
+  spread(source, n) %>%
+  mutate(sentiment = replace_na(sentiment, replace = "none"))
+sentiment_counts
+```
+Since more words were used on the Android rather than on the phone:
+```{r}
+tweet_words %>% group_by(source) %>% summarize(n = n())
+```
+for each sentiment we can calculate the odds of being in the device: proportion of words with sentiment versus proportion of words without and then compute the odds ratio comparing the two devices:
+```{r}
+sentiment_counts %>%
+  mutate(Android = Android / (sum(Android) - Android) , 
+         iPhone = iPhone / (sum(iPhone) - iPhone), 
+         or = Android/iPhone) %>%
+  arrange(desc(or))
+```
+So some differences are observed and also there the order is interesting: the largest three sentiments are disgust, anger, and negative! But are they statistically significant? How does this compare if we are just assigning sentiments at random?
+
+To answer that question we can compute, for each sentiment, an odds ratio and confidence interval. We will add the two values we need to form a two-by-two table and the odds ratio:
+```{r}
+library(broom)
+log_or <- sentiment_counts %>%
+  mutate( log_or = log( (Android / (sum(Android) - Android)) / (iPhone / (sum(iPhone) - iPhone))),
+          se = sqrt( 1/Android + 1/(sum(Android) - Android) + 1/iPhone + 1/(sum(iPhone) - iPhone)),
+          conf.low = log_or - qnorm(0.975)*se,
+          conf.high = log_or + qnorm(0.975)*se) %>%
+  arrange(desc(log_or))
+  
+log_or
+```
+A graphical visualization shows some sentiments that are clearly overrepresented:
+```{r}
+log_or %>%
+  mutate(sentiment = reorder(sentiment, log_or),) %>%
+  ggplot(aes(x = sentiment, ymin = conf.low, ymax = conf.high)) +
+  geom_errorbar() +
+  geom_point(aes(sentiment, log_or)) +
+  ylab("Log odds ratio for association between Android and sentiment") +
+  coord_flip() 
+```
+
+It is seen that the disgust, anger, negative sadness and fear sentiments are associated with the Android in a way that is hard to explain by chance alone. Words not associated to a sentiment were strongly associated with the iPhone source, which is in agreement with the original claim about hyperbolic tweets.
+
+f we are interested in exploring which specific words are driving these differences, we can back to our android_iphone_or object:
+```{r}
+android_iphone_or %>% inner_join(nrc) %>%
+  filter(sentiment == "disgust" & Android + iPhone > 10) %>%
+  arrange(desc(or))
+```
+Making a graph:
+```{r}
+android_iphone_or %>% inner_join(nrc, by = "word") %>%
+  mutate(sentiment = factor(sentiment, levels = log_or$sentiment)) %>%
+  mutate(log_or = log(or)) %>%
+  filter(Android + iPhone > 10 & abs(log_or)>1) %>%
+  mutate(word = reorder(word, log_or)) %>%
+  ggplot(aes(word, log_or, fill = log_or < 0)) +
+  facet_wrap(~sentiment, scales = "free_x", nrow = 2) + 
+  geom_bar(stat="identity", show.legend = FALSE) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
