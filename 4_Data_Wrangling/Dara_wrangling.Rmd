@@ -1941,7 +1941,9 @@ mdy_hms(x)
 
 - Use unnest_tokens() to extract individual words and other meaningful chunks of text.
 
-- Sentiment analysis assigns emotions or a positive/negative score to tokens. You can extract sentiments using get_sentiments(). Common lexicons for sentiment analysis are "bing", "afinn", "nrc" and "loughran".
+- Sentiment analysis assigns emotions or a positive/negative score to tokens. You can extract sentiments using get_sentiments().
+
+- Common lexicons for sentiment analysis are "bing", "afinn", "nrc" and "loughran".
 
 - some data are numerical but some of them are text such as: sentiment analysis, counter-terrorism-analysis, cybre-crime prevention. In these kinds of data, they are composed on free form of text. We want to extract insights from these data.
 
@@ -2232,5 +2234,237 @@ android_iphone_or %>% inner_join(nrc, by = "word") %>%
   facet_wrap(~sentiment, scales = "free_x", nrow = 2) + 
   geom_bar(stat="identity", show.legend = FALSE) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+### Example1:
+```{r}
+library(dslabs)
+library(lubridate)
+library(tidyverse)
+options(digits = 3)  #3 significant digits
+data(brexit_polls)
+
+# the entries with a startdate in April:
+sum(month(brexit_polls$startdate)==4)
+
+#the number of polls ended in 2016-06-12? (using round_date and unit of week)
+sum(round_date(brexit_polls$enddate,unit="week")=="2016-06-12")
+
+# in which day of week, the most polls are ended? (uisng week_day() function)
+table(weekdays(brexit_polls$enddate))
+```
+### example 2:
+In the data of movielans that is cotaning about 100,000 movie reviews. the timestamp column include the review date based on second from epoch date of 1970-01-01. 
+
+```{r}
+library(dslabs)
+data(movielens)
+
+# converting timestap column to dates:
+#which year has max review?
+dates <- as_datetime(movielens$timestamp) #the dates of review
+review_year <- table(year(dates))
+names(which.max(review_year))
+
+#which hour has the most review of movie?
+review_by_hour <- table(hour(dates))
+names(which.max(review_by_hour))
+```
+### example 3: text mining and sentiment analysis:
+Library of gutenbergr contains the digital archive of public domain books. 
+```{r}
+## loading the libraries:
+library(tidyverse)
+library(gutenbergr)
+library(tidytext)
+options(digits = 3)
+```
+```{r}
+## looking at the books and the data available
+gutenberg_metadata 
+```
+```{r}
+## id of the book: Pride and Prejudice
+gutenberg_metadata %>%
+  filter(str_detect(title,"Pride and Prejudice"))
+```
+```{r}
+## real id of english book of Pride and Prejudice
+gutenberg_works(title=="Pride and Prejudice")$gutenberg_id
+# gutenberg_works works such a filtered tavle pf Gutenberg
+```
+```{r}
+## downloading text of the book:
+P_P <- gutenberg_download(1342)
+```
+```{r}
+## tha table of all of the words and the number of all words:
+P_P_words <- P_P %>% unnest_tokens(word, text)
+nrow(P_P_words)
+```
+```{r}
+## filter the stop words and show the rest of the words:
+P_P_words <- P_P_words %>% filter(!word%in%stop_words$word) 
+nrow(P_P_words)
+
+# or another method:
+P_P_words <- P_P_words %>% anti_join(stop_words)
+nrow(P_P_words)
+```
+```{r}
+## removing the words which containg any digit:
+P_P_words <- P_P_words %>% filter(!str_detect(word, "\\d"))
+nrow(P_P_words)
+```
+```{r}
+## the most frequent words after filtering out the stop word and digits: (what is the most common word and how many times it is repeated)
+P_P_word_100 <- P_P_words %>%
+  count(word) %>% 
+  filter(n>100) %>%
+  arrange(desc(n)) 
+nrow(P_P_word_100)
+
+# another method
+P_P_words %>%
+    count(word) %>%
+    top_n(1, n) %>%
+    pull(n)
+```
+Sentiment analysis:
+```{r}
+afinn <- get_sentiments("afinn")
+
+## words that are both in afinn and words:
+afinn_sentiment <- P_P_words %>% inner_join(afinn, by = "word")
+nrow(afinn_setiment)
+
+##proportion of words that have a positive value
+mean(afinn_sentiment$value > 0)
+
+## afinn setiments which has a value of 4:
+sum(afinn_setiment$value==4)
+```
+## Final Project:
+This projects is about the hurricane Maria in 2017. it was one of the latgest natural distaers in Puerto Rico. However, the number of death was reported so low , about 64 deaths, and very impossible record. This data was came from direct death from the hurricane. However, for undestanding the real statistics of death, staticticians anlalyzed how death rates has been changed after the hurricane and estimated the excess number of deaths likely resulted in the hurricane.  
+In this project we aim to analyze the actual daily mortality data from Puerto Rico and consider if the Hurricane Maria had an immediate effect on daily mortality compared to unaffected days in September 2015-2017.
+
+step1: reading the pdf file od data:
+```{r}
+## loading libraries:
+library(tidyverse)
+library(pdftools)
+options(digits = 3)  #show three signinficant digits
+
+#finding PDF file of daily mortality for Puerto Rico from Jan 1, 2015 to May 31, 2018:
+fn <- system.file("extdata", "RD-Mortality-Report_2015-18-180531.pdf", package="dslabs")
+
+## opening the pdf files (in windows):
+system("cmd.exe", input = paste("start", fn))
+
+## On Mac: system2("open", args = fn)
+```
+step2: selecting one page of pdf and extract the table and then splitting the table to a lsit
+```{r}
+## saving pdf as a charactor string of length 12 (=pages of pdf)
+txt <- pdf_text(fn)
+
+## splitting all the words in this page
+x <- str_split(txt[9],"\n")
+class(x)  
+length(x)  #the number of entries
+```
+storing list as charactor
+```{r}
+s <- x[[1]]
+class(s)
+length(s)
+```
+string processing: 
+reomving the white spaces
+```{r}
+## reomving the white spaces
+s <- s %>%
+  str_trim()
+
+## example of first row
+s[1]
+```
+extracting the numbers from string:
+```{r}
+## storing head (the first line that 2015 will be appeared at):
+#starting header_index
+header_index <- str_which(s,"2015")[1]
+header_index
+```
+```{r}
+## creating the header:
+tmp <-str_split(s[header_index],"\\s+",simplify=TRUE)
+month <- tmp[1]
+month
+header <- tmp[-1]
+header
+```
+```{r}
+## the summary row in the table which contains "Total"
+tail_index <- str_which(s,"Total")
+tail_index
+```
+```{r}
+## fining the rows which has numbers in them and also the roqs with only one number which are the numbers from the graph
+n <- str_count(s,"\\d+") 
+sum(n==1)
+```
+removing entries (rows) which we dont need them:
+- entries before header
+- entries after row containing total
+- entries with only one number on them
+```{r}
+## sepcifiying the row number of rows we want to remove
+out <- c(1:header_index, which(n==1), tail_index:length(s))
+s <- s[-out]
+length(s)
+```
+Removing remainig text that we dont need them
+Note: In regex, using the ^ inside the square brackets [] means not, like the ! means not in !=
+```{r}
+## removing all other text that we dont need them:
+s <- str_remove_all(s,"[^\\d\\s]") #means delete all the rows that they do not contain digits
+```
+now spliting the strings and making a table:
+```{r}
+## splitting the remained string and creating a matrix from them:
+#note, even there are some numbers that were related to the graph, we can easiliy get rid of them as follow:
+s_new <- str_split_fixed(s, "\\s+", n = 6)[,1:5]
+
+## converting the matrix to a data frame
+tab <- s_new %>% 
+    as_data_frame() %>% 
+    setNames(c("day", header)) %>%
+    mutate_all(as.numeric)
+
+## the mean of death in 2015, 2016:
+mean(tab$"2015")
+mean(tab$"2016")
+
+## the mean of death from 1-19 of sep and 20-30?
+mean(tab$"2017"[1:19])
+mean(tab$"2017"[20:30])
+```
+converting to a tidy format:
+```{r}
+#tidy the table to have day,year,death as tidy format:
+tab <- tab %>% gather(year, deaths, -day) %>%
+    mutate(deaths = as.numeric(deaths))
+tab
+```
+making a plot showing day and death grouped by year:
+```{r}
+tab %>% 
+  filter(!year=="2018") %>%
+  ggplot(aes(day,deaths,color=year)) +
+  geom_line() +
+  geom_vline(xintercept=20) +
+  geom_point()
+  
 ```
 

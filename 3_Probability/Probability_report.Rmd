@@ -79,7 +79,7 @@ the probability of drawing a blue bead at random:
 ```{r}
 mean(beads=="blue")
 ```
-exaplanation: in facet it will evaluate if it is true or false tha we have blue: (true,true,false,false,false). so that mean only calculate the numbers is true: (1,1,1,0,0), the means of 1+1+1+0+0/5=0.6 and in fact, it gives the proportion of TRUE. The probabilities are directly related to the proportion of events that satisfy a requirement.
+explanation: in fact it will evaluate if it is true or false that we have blue: (true,true,false,false,false). so that mean only calculate the numbers is true: (1,1,1,0,0), the means of 1+1+1+0+0/5=0.6 and in fact, it gives the proportion of TRUE. The probabilities are directly related to the proportion of events that satisfy a requirement.
 
 ## Key points: Probability Distributions
 The probability distribution for a variable describes the probability of observing each possible outcome.
@@ -131,8 +131,8 @@ p_cyan_1
 p_not_cyan_without <- (magenta + yellow)/(cyan + magenta + yellow-1) #without replacement
 p_not_cyan_without 
 
-#probability of not choosing cyan in the second round if the first one is selected (sampling without replacement)
-p_not_cyan_with <- (magenta + yellow)/(cyan + magenta + yellow) #without replacement
+#probability of not choosing cyan in the second round if the first one is selected (sampling with replacement)
+p_not_cyan_with <- (magenta + yellow)/(cyan + magenta + yellow) #with replacement
 p_not_cyan_with
 
 #the probability that the first draw is cyan and the second draw is not cyan
@@ -151,10 +151,12 @@ combinations(n,r) from the gtools package lists the different ways that r items 
 number <- "Three"
 suit <- "Hearts"
 paste(number, suit)
-
+```
+```{r}
 # joining vectors element-wise with paste
 paste(letters[1:5], as.character(1:5))
-
+```
+```{r}
 # generating combinations of 2 vectors with expand.grid
 expand.grid(pants = c("blue", "black"), shirt = c("white", "grey", "plaid"))
 ```
@@ -164,7 +166,8 @@ suits <- c("Diamonds", "Clubs", "Hearts", "Spades")
 numbers <- c("Ace", "Deuce", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Jack", "Queen", "King")
 deck <- expand.grid(number = numbers, suit = suits)
 deck <- paste(deck$number, deck$suit)
-
+```
+```{r}
 # probability of drawing a king
 kings <- paste("King", suits)
 mean(deck %in% kings)
