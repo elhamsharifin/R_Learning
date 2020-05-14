@@ -1,0 +1,425 @@
+---
+title: "6_Linear_Regression"
+author: "Elham Sharifin" The notes are exactly came from the Edx course,
+date: "5/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Key point: Linear Regression
+Bill James was the originator of the sabermetrics, the approach of using data to predict what outcomes best predicted if a team would win.
+
+## Key points: Baseball Basics
+- The goal of a baseball game is to score more runs (points) than the other team.
+- Each team has 9 batters who have an opportunity to hit a ball with a bat in a predetermined order. 
+- Each time a batter has an opportunity to bat, we call it a plate appearance (PA).
+- The PA ends with a binary outcome: the batter either makes an out (failure) and returns to the bench or the batter doesn’t (success) and can run around the bases, and potentially score a run (reach all 4 bases).
+- We are simplifying a bit, but there are five ways a batter can succeed (not make an out):
+- Bases on balls (BB): the pitcher fails to throw the ball through a predefined area considered to be hittable (the strike zone), so the batter is permitted to go to first base.
+-- Single: the batter hits the ball and gets to first base.
+-- Double (2B): the batter hits the ball and gets to second base.
+-- Triple (3B): the batter hits the ball and gets to third base.
+-- Home Run (HR): the batter hits the ball and goes all the way home and scores a run.
+
+Historically, the batting average has been considered the most important offensive statistic. To define this average, we define a hit (H) and an at bat (AB). Singles, doubles, triples and home runs are hits. The fifth way to be successful, a walk (BB: base in the ball), is not a hit. An AB is the number of times you either get a hit or make an out; BBs are excluded. The batting average is simply H/AB and is considered the main measure of a success rate.
+
+## Key points:Bases on Balls or Stolen Bases?
+The visualization of choice when exploring the relationship between two variables like home runs and runs is a scatterplot.
+
+### the relationship between HRs and wins:
+```{r}
+library(Lahman) #library related to basebal satistics
+library(tidyverse)
+library(dslabs)
+ds_theme_set()
+
+## plot of Runs per game vs. Home Runs per game
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(HR_per_game=HR/G,R_per_game=R/G) %>% 
+  ggplot(aes(HR_per_game,R_per_game)) +
+  geom_point(alpha=0.5)
+
+```
+
+### relationship between stolen bases and wins:
+```{r}
+## plot stolen base per game vs home run per game
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(SB_per_game=SB/G,R_per_game=R/G) %>% 
+  ggplot(aes(SB_per_game,R_per_game)) +
+  geom_point(alpha=0.5)
+```
+### relationship between bases on balls and runs:
+```{r}
+## plot Base on Balls vs home run per game
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(BB_per_game=BB/G,R_per_game=R/G) %>% 
+  ggplot(aes(BB_per_game,R_per_game)) +
+  geom_point(alpha=0.5)
+```
+
+### plot runs per game versus at bats (AB) per game
+```{r}
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(AB_per_game=AB/G,R_per_game=R/G) %>% 
+  ggplot(aes(AB_per_game,R_per_game)) +
+  geom_point(alpha=0.5)
+
+```
+### plot win rate (number of wins per game) versus number of fielding errors (E) per game.
+```{r}
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(Error_per_game=E/G,W_per_game=W/G) %>% 
+  ggplot(aes(Error_per_game,W_per_game)) +
+  geom_point(alpha=0.5)
+```
+
+### relationships between triples (X3B) per game versus doubles (X2B) per game.
+```{r}
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(tripple_per_game=X3B/G,doubles_per_game=X2B/G) %>% 
+  ggplot(aes(tripple_per_game,doubles_per_game)) +
+  geom_point(alpha=0.5)
+```
+
+## Key points: Correlation
+- Galton tried to predict sons' heights based on fathers' heights.
+- The mean and standard errors are insufficient for describing an important characteristic of the data: the trend that the taller the father, the taller the son.
+- The correlation coefficient is an informative summary of how two variables move together that can be used to predict one variable using the other.
+
+```{r}
+library(HistData)
+data("GaltonFamilies")
+Galton_heights <- GaltonFamilies %>%
+  filter(childNum==1 & gender=="male") %>%
+  select(father,childHeight) %>%
+  rename(son=childHeight)
+
+# means and standard deviations of heights
+Galton_heights %>%
+  summarise(mean(father),sd(father),mean(son),sd(son))
+```
+```{r}
+# scatterplot of father and son heights
+Galton_heights %>%
+  ggplot(aes(father,son)) +
+  geom_point(alpha=0.5)
+```
+
+## Key points: Correlation Coefficient
+- The correlation coefficient is defined for a list of pairs $(x_1,y_1),...,(x_n,y_n)$ as the product of the standardized values: 
+$(\frac{x_i-\mu_x}{\sigma_x})(\frac{y_i-\mu_y}{\sigma_y})$
+
+- The correlation coefficient essentially conveys how two variables move together.
+
+- The correlation coefficient is always between -1 and 1.
+```{r}
+library(HistData)
+data("GaltonFamilies")
+Galton_heights <- GaltonFamilies %>%
+  filter(childNum==1 & gender=="male") %>%
+  select(father,childHeight) %>%
+  rename(son=childHeight)
+
+## correlation between the heights of son and his father
+Galton_heights %>%
+  summarize(cor(father,son))
+```
+
+## Key points: Sample Correlation is a Random Variable
+- The correlation that we compute and use as a summary is a random variable.
+
+- When interpreting correlations, it is important to remember that correlations derived from samples are estimates containing uncertainty. (keep in mide that correlatio has about high standard error).
+
+- Because the sample correlation is an average of independent draws, the central limit theorem applies. So, for a sample of large enough, the distribution of the sampel is Normal. 
+$\sim N(\rho,\sqrt{\frac{1-r^2}{N-2}})$
+- r=mean(R) 
+- $\rho=$population correlation
+- $sd=\sqrt{\frac{1-r^2}{N-2}$
+
+```{r}
+## sampling from the Galton heights:
+set.seed(0, sample.kind="Rounding")
+R <- sample(Galton_heights,25,replace=TRUE) %>%
+  summarize(cor(father,son))
+R
+```
+```{r}
+## Run a Monto Carlo simulation to see the distribution of sample correlation
+B <- 1000
+N <- 25
+R <- replicate(B,{
+  sample_n(Galton_heights,N,replace=TRUE) %>%
+    summarize(r=cor(father,son)) %>% .$r
+})
+
+## plot the distribution of sample correlation
+data.frame(R) %>%
+  ggplot(aes(R)) +
+  geom_histogram(binwidth = 0.05, color="black")
+
+## expected value and standard error of corrolation
+mean(R)
+sd(R)
+```
+```{r}
+# QQ-plot to evaluate whether N is large enough
+data.frame(R) %>%
+    ggplot(aes(sample = R)) +
+    stat_qq() +
+    geom_abline(intercept = mean(R), slope = sqrt((1-mean(R)^2)/(N-2)))
+#result: N=25 is not a large enough for a good approximation
+```
+
+Note: If we increase the size of sample to for example N=50, 
+- the mean of our sample stay approximately the same: because the expected value of the sample correlation is the population correlation, it should stay approximately the same even if the sample size is increased. 
+- As the sample size N increases, the standard deviation of the sample correlation should decrease. 
+
+### Exercise: correlation between varaible in Basebal statistics
+```{r}
+## correlation between rus per game and at bat per game
+library(Lahman)
+Teams %>%
+  filter(yearID%in%1961:2001) %>%
+  mutate(AB_per_game=AB/G,R_per_game=R/G) %>% 
+  summarize(r=cor(AB_per_game,R_per_game))
+
+## correlation voefficient between win rate (number of wins per game) and number of errors per game
+Teams %>%
+  filter(yearID%in%1961:2001) %>%
+  mutate(win_per_game=W/G,error_per_game=E/G) %>% 
+  summarize(r=cor(win_per_game,error_per_game))
+
+## correlation coef between doubles (X2B) per game and triples (X3B) per game
+Teams %>%
+  filter(yearID%in%1961:2001) %>%
+  mutate(double_per_game=X2B/G,triple_per_game=X3B/G) %>% 
+  summarize(r=cor(double_per_game,triple_per_game))
+```
+
+## Key points: Anscombe's Quartet/Stratification
+- Correlation is not always a good summary of the relationship between two variables.
+
+- The general idea of conditional expectation is that we stratify a population into groups and compute summaries in each group.
+
+- A practical way to improve the estimates of the conditional expectations is to define strata of with similar values of x.
+
+- the formula for regression line is:
+$(\frac{y_i-\mu_y}{\sigma_y})=\rho(\frac{x_i-\mu_x}{\sigma_x})$
+
+- If there is perfect correlation, the regression line predicts an increase that is the same number of SDs for both variables. 
+- If there is 0 correlation, then we don’t use x at all for the prediction and simply predict the average $\mu_y$. 
+- For values between 0 and 1, the prediction is somewhere in between
+- If the correlation is negative, we predict a reduction instead of an increase.
+
+- we can write the formula as: $y=b+mx$ (b=intercept, m=slope)
+ slop: $m=\rho\frac{\sigma_y}{\sigma_x}$ 
+ intercept: $b=\mu_y-m\mu_x$
+
+_ if we write the variables in the standard format (mean=0,sd=1):
+The regression line will have the intercept of zero and slope of $\rho$, regression coef.
+
+
+```{r}
+## number of fathers that have height 72 or 72.5 inches
+sum(Galton_heights$father==72)
+sum(Galton_heights$father==72.5)
+
+## predicted height of a son with a father of 72 inch height 
+conditional_avg <- Galton_heights %>%
+  filter(round(father)==72) %>%
+  summarize(avg=mean(son)) %>% .$avg
+conditional_avg
+```
+```{r}
+## stratify fathers' heights to generate a boxplot of son heights
+Galton_heights %>%
+  mutate(father_strata=factor(round(father))) %>%
+  ggplot(aes(father_strata,son)) +
+  geom_boxplot() +
+  geom_point()
+
+# as we see some of the limitation of conditional averages ares:
+# Each stratum we condition on may not have many data points. 
+# Because there are limited data points for each stratum, our average values have large standard errors. 
+#Conditional means are less stable than a regression line. 
+```
+```{r}
+## center of each boxplot
+Galton_heights %>%
+  mutate(father=round(father)) %>%
+  group_by(father) %>%
+  summarize(son_conditional_avg=mean(son)) %>%
+  ggplot(aes(father,son_conditional_avg)) +
+  geom_point()
+# The mean of each group appears to follow a linear relationship. The slope of line is 0.5 which happens to be the correlation between father and son height.
+```
+```{r}
+r <- Galton_heights %>%
+  summarise(r=cor(father,son)) %>% .$r
+
+Galton_heights %>%
+  mutate(father=round(father)) %>%
+  group_by(father) %>%
+  summarize(son=mean(son)) %>%
+  mutate(z_father=scale(father),z_son=scale(son)) %>%
+  ggplot(aes(z_father,z_son)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope=r)
+  
+```
+```{r}
+## computing values to plot regression line on original data
+mu_x <- mean(Galton_heights$father)
+mu_y <- mean(Galton_heights$son)
+s_x <- sd(Galton_heights$father)
+s_y <- sd(Galton_heights$son)
+r <- cor(Galton_heights$father, Galton_heights$son)
+m <- r * s_y/s_x
+b <- mu_y - m*mu_x
+
+## adding regression line to plot
+Galton_heights %>%
+    ggplot(aes(father, son)) +
+    geom_point(alpha = 0.5) +
+    geom_abline(intercept = b, slope = m)
+```
+```{r}
+## adding regression line to plot of standarded data (avg=0,sd=1)
+Galton_heights %>%
+  ggplot(aes(scale(father),scale(son))) +
+           geom_point(alpha=0.5) +
+  geom_abline(intercept = 0, slope=r)
+           
+```
+
+## Key points: Bivariate Normal Distribution
+- When a pair of random variables are approximated by the bivariate normal distribution, scatterplots look like ovals. They can be thin (high correlation) or circle-shaped (no correlation). (However, The v-shaped distribution of points means that the x and y variables do not follow a bivariate normal distribution).
+
+- If X and Y are normally distributed random variables, and for any group of X, X=x, Y is approximately normal in that group, then the pair is approximately bivariate normal.
+
+- When two variables follow a bivariate normal distribution, computing the regression line is equivalent to computing conditional expectations.
+$f_{Y|X=x}$ is the conditional distibution
+and $E(Y|X=x)$ is conditional expected value
+
+- We can obtain a much more stable estimate of the conditional expectation by finding the regression line and using it to make predictions.
+```{r}
+Galton_heights %>%
+  mutate(z_father=round((father-mean(father))/sd(father))) %>%
+  filter(z_father %in% -2:2) %>%
+  ggplot() +
+  stat_qq(aes(sample=son)) +
+  facet_wrap(~z_father)
+         
+```
+
+## Key points: Variance explained
+- Conditioning on a random variable X can help to reduce variance of response variable Y.
+
+- The standard deviation of the conditional distribution is $SD(Y|X=x)=\sigma_y\sqrt{1-\rho^2}$, which is smaller than the standard deviation without conditioning $\sigma_y$.
+
+- Because variance is the standard deviation squared, the variance of the conditional distribution is $\sigma^2_y(1-\rho^2)$.
+
+- In the statement "X explains such and such percent of the variability," the percent value refers to the variance. The variance decreases by $\rho^2$ percent.
+
+- When two variables follow a bivariate normal distribution, the variation explained can be calculated as $\rho^2*100$.
+
+- The “variance explained” statement only makes sense when the data is approximated by a bivariate normal distribution.
+
+## Key point: There are Two Regression Lines
+There are two different regression lines depending on whether we are taking the expectation of Y given X or taking the expectation of X given Y.
+```{r}
+# calculate a regression line for prediction of the son's height from the father's height
+mu_x <- mean(Galton_heights$father)
+mu_y <- mean(Galton_heights$son)
+s_x <- sd(Galton_heights$father)
+s_y <- sd(Galton_heights$son)
+r <- cor(Galton_heights$father, Galton_heights$son)
+m_1 <-  r * s_y / s_x
+b_1 <- mu_y - m_1*mu_x
+
+m_1
+b_1
+#E(Y|X=x)=35+0.5*x
+
+# compute a regression line to predict the father's height from the son's height
+m_2 <-  r * s_x / s_y
+b_2 <- mu_x - m_2*mu_y
+
+m_2
+b_2
+#E(X|Y=y)=34+0.5y
+```
+
+### Exercise:
+Assume that the correlation between father's height and his son’s height is 0.5, the standard deviation of fathers’ heights and son's heights are is 2, and 3 inches respectively.
+Given a one inch increase in a father’s height, what is the predicted change in the son’s height?
+```{r}
+## The slope of the regression line is calculated by multiplying the correlation coefficient by the ratio of the standard deviation of son heights and standard deviation of father heights: 
+r=0.5
+sigma_father=2
+sigma_son=3
+r*sigma_son/sigma_father
+```
+
+### Exercise 2: Mother's height and daughter's height
+```{r}
+set.seed(1989, sample.kind="Rounding")
+library(HistData)
+data("GaltonFamilies")
+
+female_heights <- GaltonFamilies%>%     
+    filter(gender == "female") %>%     
+    group_by(family) %>%     
+    sample_n(1) %>%     
+    ungroup() %>%     
+    select(mother, childHeight) %>%     
+    rename(daughter = childHeight)
+
+## mean and standard deviation of mothers' heights
+mean(female_heights$mother)
+sd(female_heights$mother)
+
+## mean and standard deviation of dauther' heights
+mean(female_heights$daughter)
+sd(female_heights$daughter)
+
+## correlation coef of mather's height and dauther's height
+cor(female_heights$daughter,female_heights$mother)
+
+```
+
+```{r}
+##calculate the slope and intercept of the regression line predicting daughters' heights given mothers' heights.
+mu_x <- mean(female_heights$mother)
+mu_y <- mean(female_heights$daughter)
+s_x <- sd(female_heights$mother)
+s_y <- sd(female_heights$daughter)
+r <- cor(female_heights$daughter,female_heights$mother)
+
+m_1 <-  r * s_y / s_x
+b_1 <- mu_y - m_1*mu_x
+
+m_1
+b_1
+
+##Given an increase in mother's height by 1 inch, how many inches is the daughter's height expected to change?
+r*(s_y/s_x)
+
+## the percent of the variability in daughter heights which can be  explained by the mother's height.(The percent of variability can be calculated using r^2*100.)
+r^2*100
+
+## A mother has a height of 60 inches. What is the conditional expected value of her daughter's height given the mother's height?
+b_1+(m_1*60)
+
+```
+
