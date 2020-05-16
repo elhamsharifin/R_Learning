@@ -423,3 +423,743 @@ b_1+(m_1*60)
 
 ```
 
+## Key points: Confounding: Are BBs More Predictive?
+-Association is not causation!
+
+-Although it may appear that BB cause runs, it is actually the HR that cause most of these runs. We say that BB are confounded with HR.
+
+-Regression can help us account for confounding.
+```{r}
+library(Lahman)
+library(tidyverse)
+
+## the scatterplot of walk by batters (BB) per game and Run per game:
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(BB_per_game=BB/G,R_per_game=R/G) %>% 
+  ggplot(aes(BB_per_game,R_per_game)) +
+  geom_point(alpha=0.5) 
+```
+```{r}
+## calculating the slope of regression line on the BB, and R
+bb_slope <- Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(BB_per_game=BB/G,R_per_game=R/G) %>% 
+  lm(R_per_game~BB_per_game,data=.) %>%
+  .$coef %>%
+  .[2]
+bb_slope 
+```
+```{r}
+## calculating the slope of regression line for prediction of Single runs per game vs. runs per game:
+Singles_slope <- Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(Singles_per_game=(H-HR-X2B-X3B)/G, R_per_game=R/G) %>%
+  lm(R_per_game~Singles_per_game,data=.) %>%
+  .$coef %>%
+  .[2]
+Singles_slope
+```
+```{r}
+## calculating correlation between HR,BB, and Single runs
+Teams %>%
+  filter(yearID %in% 1961:2001) %>%
+  mutate(Singles=(H-HR-X2B-X3B)/G, BB=BB/G, HR=HR/G) %>%
+  summarize(cor(BB,HR),cor(Singles,HR),cor(BB,Singles))
+```
+## Key points: Stratification and Multivariate Regression
+- A first approach to check confounding is to keep HRs fixed at a certain value and then examine the relationship between BB and runs.
+- The slopes of BB after stratifying on HR are reduced, but they are not 0, which indicates that BB are helpful for producing runs, just not as much as previously thought. In fact, the slope of runs per game vs. bases on balls within each stratum was reduced because we removed confounding by home runs.
+
+```{r}
+## stratifing  HR per game to nearest 10, filter out strata with few points
+dat <- Teams %>%
+  filter(yearID%in%1961:2001) %>%
+  mutate(HR_strata=round(HR/G,1),
+         BB_per_game=BB/G,
+         R_per_game=R/G) %>%
+  filter(HR_strata>=0.4&HR_strata<=1.2)
+
+## creating a scatter plot for each strata (BB_per_game vs. R_per_game)
+dat %>%
+  ggplot(aes(BB_per_game,R_per_game)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method="lm") +
+  facet_wrap(~HR_strata)
+
+# remember: the slope of regression line of BB vs. R per game was 0.75 with ignoring Home run
+```
+
+```{r}
+## finging out the slope of regression line of the above regression lines:
+dat %>%
+  group_by(HR_strata) %>%
+  summarize(slope=cor(BB_per_game,R_per_game)*sd(R_per_game)/sd(BB_per_game))
+
+# these values are closer to slope obtained from Singles (0.449)
+```
+
+```{r}
+## stratifying by BB
+dat <- Teams %>%
+  filter(yearID%in%1961:2001) %>%
+  mutate(BB_strata=round(BB/G,1),
+         HR_per_game=HR/G,
+         R_per_game=R/G) %>%
+  filter(BB_strata>=2.8&BB_strata<=3.9)
+
+## creating a scatter plot for each strata (HB_per_game vs. R_per_game)
+dat %>%
+  ggplot(aes(HR_per_game,R_per_game)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method="lm") +
+  facet_wrap(~BB_strata)
+```
+```{r}
+## slope of regression line after stratification by BB
+dat %>%
+  group_by(BB_strata) %>%
+  summarize(slope=cor(HR_per_game,R_per_game)*sd(R_per_game)/sd(HR_per_game))
+
+# they do not chnage that much from the original slope that was 1.84
+```
+
+## Key points: Linear Models
+- Regression allows us to find relationships between two variables while adjusting for others.
+
+- “Linear” here does not refer to lines, but rather to the fact that the conditional expectation is a linear combination of known quantities.
+
+- In Galton's model, we assume Y (son's height) is a linear combination of a constant and X (father's height) plus random noise. We further assume that $\epsilon_i$ are independent from each other, have expected value 0 and the standard deviation $\sigma$ which does not depend on i.
+
+- Note that if we further assume that $\epsilon$ is normally distributed, then the model is exactly the same one we derived earlier by assuming bivariate normal data.
+
+- We can subtract the mean from X to make $\beta_0$ more interpretable. 
+
+_ the assumptopnf for $\epsilon_i$ (error) are:
+--- The $\epsilon_i$ are independent from each other
+--- The $\epsilon_i$ have expected value of 0 and sd of $\sigma$
+--- the varianc eof $\epsilon_i$ is a constant
+
+```{r}
+##  for the Galto heights, the coesfficient of regression line is:
+lm(son ~ father, data = Galton_heights)
+# it means with every inch increase in father's height, the son's height increase by 0.5 inch. 
+```
+```{r}
+## running a linear model using centered fathers’ height variable
+Galton_heights2 <- Galton_heights %>%
+    mutate(father_centered=father - mean(father))
+
+## finding out the coefficient of regression line:
+ lm(son ~ father_centered, data = Galton_heights2)
+```
+
+## Key points: Least Squares Estimates (LSE)
+- For regression, we aim to find the coefficient values that minimize the distance of the fitted model to the data.
+
+- Residual sum of squares (RSS) measures the distance between the true value and the predicted value given by the regression line.
+$RSS=\sum_{i=1}^{N}{\{Y_i-(\beta_0-\beta_1x_i)}\}^2$
+
+- The values that minimize the RSS are called the least squares estimates (LSE). 
+
+- The least squares estimates for parameters $\beta_0,\beta_1,..,\beta_n$ $minimize, not maximize, the residual sum of squares.
+
+- We can use partial derivatives to get the values for $\beta_0$ and $\beta_1$ in Galton's data.
+
+```{r}
+library(HistData)
+data("GaltonFamilies")
+set.seed(1983)
+Galton_heights <- GaltonFamilies %>%
+  filter(gender == "male") %>%
+  group_by(family) %>%
+  sample_n(1) %>%
+  ungroup() %>%
+  select(father, childHeight) %>%
+  rename(son = childHeight)
+
+# calculation of RSS for any pair of beta0 and beta1 in Galton's data
+rss <- function(beta0,beta1,data){
+  resid <- Galton_heights2$son - (beta0+beta1*Galton_heights2$father)
+  return(sum(resid^2))
+}
+#this is a 3D with x, y in the horizontal plan and RSS in the vertical axes.
+
+## Plotting the rss vs. beta1 assuming w have a fix beta0 (2D).
+beta1 <- seq(0,1,len=nrow(Galton_heights))
+results <- data.frame(beta1=beta1,rss=sapply(beta1,rss,beta0=25))
+
+results %>% ggplot(aes(beta1,rss)) +
+  geom_line() +
+  geom_line(aes(beta1,rss),col=2)
+# as seen there is a minimum of 0.64 for rss (when beta0 is fixed at 25)
+```
+
+## Key points: The lm Function
+- When calling the lm() function, the variable that we want to predict is put to the left of the ~ symbol, and the variables that we use to predict is put to the right of the ~ symbol. The intercept is added automatically. To fit the equation 
+
+- LSEs are random variables.
+```{r}
+#$Y_i=\beta_0+\beta_1x_i+\epsilon_i$
+fit <- lm(son ~ father, data=Galton_heights)
+fit
+
+## function summary gives more info about fit
+summary(fit)
+```
+
+## Key points: LSE are Random Variables
+- Because they are derived from the samples ($Y_1,Y_2, ..,Y_N$), LSE are random variables.
+
+- $\beta_0$ and $\beta_1$ appear to be normally distributed because the central limit theorem plays a role. for Large enough N, the LSEs will be approximately normal with expected values $\beta_0$ and $\beta_1$.
+
+- The t-statistic ate not based on CLT, and depends on the assumption that $\epsilon$ follows a normal distribution. In fact, $\hat{\beta_0}/\hat{SE}(\hat{\beta_0)}}$
+$\hat{\beta_1}/\hat{SE}(\hat{\beta_1)}}$
+have t distribution with N-p degrees of freedom. 
+(p:Number of parameters in the model)
+
+```{r}
+## Monto carlo simulation of lse:
+B <- 1000
+N <- 50
+lse <- replicate(B,{
+  sample_n(Galton_heights,N,replace=TRUE) %>%
+    lm(son ~ father, data=.) %>% .$coef
+})
+
+lse <- data.frame(beta_0=lse[1,],beta_1=lse[2,])
+
+##  distribution of beta_0, beta_1
+library(gridExtra)
+p1 <- lse %>%
+  ggplot(aes(beta_0)) +
+  geom_histogram(binwidth=5,color="black")
+
+p2 <- lse %>%
+  ggplot(aes(beta_1)) +
+  geom_histogram(binwidth=0.1,color="black")
+
+grid.arrange(p1,p2,ncol=2)
+```
+
+```{r}
+## standard error of coefficient beta_0 and beta_1
+lse %>%
+  summarize(se_0=sd(beta_0),se_1=sd(beta_1))
+```
+
+```{r}
+## Estimated standard error of coefficient beta_0 and beta_1 and other info
+sample_n(Galton_heights, N, replace=TRUE) %>%
+  lm(son ~ father, data=.) %>% summary
+```
+## Advanced Note on LSE
+Although interpretation is not straight-forward, it is also useful to know that the LSE can be strongly correlated, which can be seen using this code:
+```{r}
+lse %>% summarize(cor(beta_0, beta_1))
+```
+However, the correlation depends on how the predictors are defined or transformed.
+- Here we standardize the father heights, which changes $x_i$ to $x_i-\bar{x}$.
+
+```{r}
+B <- 1000
+N <- 50
+lse <- replicate(B, {
+      sample_n(Galton_heights, N, replace = TRUE) %>%
+      mutate(father = father - mean(father)) %>%
+      lm(son ~ father, data = .) %>% .$coef 
+})
+#Observe what happens to the correlation in this case:
+cor(lse[1,], lse[2,]) 
+```
+## Key points: Predicted Variables are Random Variables
+- The predicted value is often denoted as $\hat{Y}$, which is a random variable. Mathematical theory tells us what the standard error of the predicted value is.
+
+- ggplot2 layer: geom_smooth(meth="lm") draw confidence intervals around the predicted variable $\hat{Y}$. 
+
+- The predict() function in R can give us predictions directly.
+
+```{r}
+Galton_heights %>%
+  ggplot(aes(son,father)) +
+  geom_point() +
+  geom_smooth(method="lm")
+
+# as seen, the prediction line and confidenc eintervals are shown  
+```
+
+```{r}
+# ploting the best fit line
+Galton_heights %>%
+  mutate(Y_hat=predict(lm(son~father,data=.))) %>%
+  ggplot(aes(father,Y_hat)) +
+  geom_line()
+```
+```{r}
+##Predict Y directly (standard error and other parameters can be obtained from predict function)
+fit <- Galton_heights %>%
+  lm(son~father,data=.)
+Y_hat <- predict(fit,se.fit=TRUE)
+names(Y_hat)
+```
+
+### Exercise: find the value of least squares estimate (LSE) for 
+$\beta_1$ if $\beta_0=36$
+```{r}
+## the function of rss
+rss <- function(beta0,beta1,data){
+  resid <- Galton_heights$son - (beta0+beta1*Galton_heights2$father)
+  return(sum(resid^2))
+}
+  
+beta1 = seq(0, 1, len=nrow(Galton_heights))
+results <- data.frame(beta1 = beta1,
+                      rss = sapply(beta1, rss, beta0 = 36))
+
+results %>% ggplot(aes(beta1, rss)) +
+  geom_line() + 
+  geom_line(aes(beta1, rss), col=2)
+```
+### Exercise:
+predict the number of runs per game based on both the number of bases on balls per game and the number of home runs per game?
+In fact $Runs = \beta_0+\beta_{BB}.BB+\beta_{HR}.HR+\epsilon$
+```{r}
+library(Lahman)
+fit <- Teams %>%  
+  filter(yearID%in%1961:2001) %>%
+  mutate(R=R/G,BB=BB/G,HR=HR/G) %>%
+  lm(R ~ BB+HR, data=.) 
+summary(fit)
+
+```
+### Example 3:
+Run a Monte Carlo simulation of sample zise 100 from the Galton heights data and calculate the regression slope coefficients for each sample.
+```{r}
+N <- 100
+B <- 1000
+lse <- replicate(B,{
+  sample_n(Galton_heights,N,replace=TRUE) %>%
+  lm(son~father,data=.) %>% .$coef
+})
+
+lse <- data.frame(beta_0=lse[1,],beta_1=lse[2,])
+
+p0 <- lse %>%
+  ggplot(aes(beta_0)) +
+  geom_histogram(binwidth=1.4)
+p0
+
+p1 <- lse %>%
+  ggplot(aes(beta_1)) +
+  geom_histogram(binwidth=0.03)
+
+grid.arrange(p0,p1,ncol=2)
+```
+
+### exercise 4: 
+we can plot father height and the regression line and its intervals by the following methods:
+
+```{r}
+#method2
+Galton_heights %>% ggplot(aes(father, son)) +
+    geom_point() +
+    geom_smooth(method = "lm") #for linear model, it should have method="lm"
+```
+```{r}
+#method3
+model <- lm(son ~ father, data = Galton_heights)
+predictions <- predict(model, interval = c("confidence"), level = 0.95)
+data <- as_tibble(predictions) %>% bind_cols(father = Galton_heights$father)
+
+ggplot(data, aes(x = father, y = fit)) +
+    geom_line(color = "blue", size = 1) + 
+    geom_ribbon(aes(ymin=lwr, ymax=upr), alpha=0.2) + 
+    geom_point(data = Galton_heights, aes(x = father, y = son))
+```
+
+### Exercise 5: (Least Squares Estimates)
+we are considering Female height data from galton_heights
+
+```{r}
+set.seed(1989, sample.kind="Rounding")
+library(HistData)
+data("GaltonFamilies")
+options(digits = 3)    # report 3 significant digits
+
+female_heights <- GaltonFamilies %>%     
+    filter(gender == "female") %>%     
+    group_by(family) %>%     
+    sample_n(1) %>%     
+    ungroup() %>%     
+    select(mother, childHeight) %>%     
+    rename(daughter = childHeight)
+```
+```{r}
+## Fitting a linear regression model predicting the mothers' heights from daughters' heights. 
+fit <- lm(mother~daughter,data=female_heights)
+fit$coef[1]
+fit$coef[2]
+```
+```{r}
+## predicted height of the first mother in the dataset?
+predict(fit)[1]
+
+## the actual height of the first mother
+female_heights$mother[1]
+```
+### Exercise 6: (Least Squares Estimates) Baseball example
+we are going to compare the stability of singles and BBs. create two table including one for 2002 and other one for the average of 1999-2001 seasons. Lets define per plate appearance statistics, keeping only players with more than 100 plate appearances.
+
+```{r}
+## filtering the Batting data to contain year of 2002
+library(Lahman)
+bat_02 <- Batting %>%
+  filter(yearID == 2002) %>%
+    mutate(pa = AB + BB, 
+           singles = (H - X2B - X3B - HR)/pa, 
+           bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+    select(playerID, singles, bb)
+
+## filtering the Batting data to contain years of 1999:2001
+bath_99_01 <- Batting %>%
+  filter(yearID %in%1999:2001) %>%
+   group_by(playerID) %>%
+    mutate(pa = AB + BB, 
+           singles = (H - X2B - X3B - HR)/pa, 
+           bb = BB/pa) %>%
+    filter(pa >= 100) %>%
+  summarize(mean_singles=mean(singles),mean_bb=mean(bb))
+
+## the number of playes who has the mean of singles more than 0.2 per plate appearance
+bath_99_01 %>% filter(mean_singles>0.2) %>% nrow()
+
+## the number of playes who has the mean of BB more than 0.2 per plate appearance
+bath_99_01 %>% filter(mean_bb>0.2) %>% nrow()
+```
+
+```{r}
+## joining the year of 2002 with the table of years 1999:2001
+## calculate the correlation between the singles and bb?
+bat_join <- inner_join(bat_02,bath_99_01) 
+cor(bat_join$singles,bat_join$mean_singles)
+cor(bat_join$bb,bat_join$mean_bb)
+```
+```{r}
+## plotting mean_singles vs. singles and also mean_bb vs. bb
+bat_join %>%
+  ggplot(aes(bat_join$mean_singles,bat_join$singles)) +
+  geom_point()
+  
+bat_join %>%
+  ggplot(aes(bat_join$mean_bb,bat_join$bb)) +
+  geom_point()
+# because they are oval, both distributions are bivarial Normal
+```
+
+```{r}
+## Fit a linear model for predicting 2002 singles based on given 1999-2001 mean_singles.
+fit_singles <- lm(singles~mean_singles,data=bat_join)
+fit_singles$coef[1]
+fit_singles$coef[2]
+
+fit_bb <- lm(bb~mean_bb,data=bat_join)
+fit_bb$coef[1]
+fit_bb$coef[2]
+```
+# Section 2
+## Key points: Advanced dplyr: Tribbles
+- Tibbles can be regarded as a modern version of data frames and are the default data structure in the tidyverse.
+
+- Some functions that do not work properly with data frames do work with tibbles.
+
+- tidyverse functions such as group_by and summarize always return tibbles.
+
+- Note, select, filter, mutate, and arrange do not neccessarrly return tibbles and they preserve the class of input.
+```{r}
+## stratifying the Teams data by HR
+library(Lahman)
+dat <- Teams %>% filter(yearID%in%1961:2001) %>%
+  mutate(HR=round(HR/G,1),
+         BB=BB/G,
+         R=R/G) %>%
+  select(HR,BB,R) %>%
+  filter(HR>=0.4 & HR<=1.2)
+
+## Computing the slope of regression lines to predict runs by BB in different HR strata
+dat %>%
+  group_by(HR) %>%
+  summarize(slope=cor(BB,R)*sd(R)/sd(BB))
+```
+```{r}
+## Use lm fucntion to find estimated slopes - lm function ignores the grouped tibbles
+dat %>%
+  group_by(HR) %>%
+  lm(R ~ BB, data=.) %>%
+  .$coef
+# reason: lm is not a part of tidyverse and does not know how to handle the outcome of group_by which is a group tibble
+```
+```{r}
+## inspecting a grouped tibble
+dat %>%
+  group_by(HR) %>%
+  head()
+# as seen on the console, the type if Tibble of 6 in 3
+```
+```{r}
+##
+dat %>%
+  group_by(HR) %>%
+  class()
+```
+
+## Key points: Tibbles: Differences from Data Frames
+- Tibbles are more readable than data frames.
+
+- If you subset a data frame, you may not get a data frame. If you subset a tibble, you always get a tibble.
+
+- Tibbles can hold more complex objects such as lists or functions.
+
+- Tibbles can be grouped.
+
+```{r}
+## diff_1:  calling data by dataframe and tibble on the Console
+Teams
+as.tibble(Teams)
+```
+```{r}
+##dif_2: subset of tibbles are also tibbles
+
+#subsetting a data frame usually return a vector
+class(Teams[,20]) 
+
+#subsetting tibble always return tibble
+class(as.tibble(Teams[,20])) 
+
+# pulling a vector out of a tibble
+class(as.tibble(Teams)$HR) 
+
+```
+```{r}
+## accessing to a non-existing column in a data frame vs. tibble
+Teams$hr
+as.tibble(Teams)$hr
+```
+```{r}
+## we can create more complex objects with tibbles
+tibble(id=c(1,2,3),fucn=c(mean,median,sd))
+```
+```{r}
+dat %>%
+  group_by(HR) %>%
+  lm(R~BB,data=.)
+# as lm function is not a part of tidyverse, does not know how to handle with group tibbles. The objetc is basically converted to a dataframe and then the function runs ignoring groups. that's why it only get one pair of estimates.
+```
+
+## Key points: do functions
+- The do() function serves as a bridge between R functions, such as lm(), and the tidyverse. The do function undestand group and always return a dataframe.
+
+- We have to specify a column when using the do() function, otherwise we will get an error.
+
+- If the data frame being returned has more than one row, the rows will be concatenated appropriately.
+```{r}
+## stratifying the Teams data by HR
+library(Lahman)
+dat <- Teams %>% filter(yearID%in%1961:2001) %>%
+  mutate(HR=round(HR/G,1),
+         BB=BB/G,
+         R=R/G) %>%
+  select(HR,BB,R) %>%
+  filter(HR>=0.4 & HR<=1.2)
+
+## we can use do to fit a regression line to each HR stratum
+dat %>%
+  group_by(HR) %>%
+  do(fit=lm(R~BB,data=.))
+```
+```{r}
+## using do without a column name returns an error
+dat%>%
+  group_by(HR) %>%
+  do(lm( R ~ BB, data=.))
+```
+```{r}
+## defining a function to extract slope from lm
+get_slopes <- function(data){
+  fit <- lm(R ~ BB, data=data)
+  data.frame(slope=fit$coefficient[2],
+             se=summary(fit)$coefficient[2,2])
+}
+
+## returning the desired data frame
+dat %>%
+  group_by(HR) %>%
+  do(get_slopes(.))
+```
+```{r}
+## returning not the desired output: a column containing data frames
+dat %>%
+  group_by(HR) %>%
+  do(slope=get_slopes(.))
+```
+```{r}
+## data frames with multiple rows will be concatenated appropriately
+get_lse <- function(data){
+  fit <- lm(R ~ BB, data=data)
+  data.frame(term=names(fit$coefficients),
+             slope=fit$coefficients,
+             se=summary(fit)$coefficient[,2])
+}
+
+## getting the slope and intercept and also se of different HR
+dat %>%
+  group_by(HR) %>%
+  do(get_lse(.))
+```
+
+## Key points: broom
+- The broom package has three main functions, all of which extract information from the object returned by lm and return it in a tidyverse friendly data frame.
+
+- The tidy() function returns estimates and related information as a data frame.
+
+- The functions glance() and augment() relate to model specific and observation specific outcomes respectively.
+
+```{r}
+## using tidy to return lm estimates and related information as a data frame
+library(broom)
+fit <- lm(R ~ BB, data=dat)
+tidy(fit)
+```
+```{r}
+## add the confidence intervals with tidy
+tidy(fit,conf.int = TRUE)
+```
+```{r}
+## pipeline with lm, do, tidy
+dat %>%
+  group_by(HR) %>%
+  do(tidy(lm(R ~ BB, data=.),conf.int=TRUE)) %>%
+  filter(term=="BB") %>%
+  select(HR,estimate,conf.low,conf.high)
+```
+```{r}
+## make visualization with ggplot
+dat %>%
+  group_by(HR) %>%
+  do(tidy(lm(R ~ BB, data=.),conf.int=TRUE)) %>%
+  filter(term=="BB") %>%
+  select(HR,estimate,conf.low,conf.high) %>%
+  ggplot(aes(HR,y=estimate,ymin=conf.low,ymax=conf.high)) +
+  geom_errorbar() +
+  geom_point()
+```
+As a result, as seen the confidence intervals overlap, which provides a nice visual confirmation that our assumption that the slopes do not change with home run strata, is realtively safe.
+
+```{r}
+## glance function
+fit <- lm(R ~ BB, data=dat)
+glance(fit)
+```
+
+### Exercise:
+Add the following parameters including (the coefficient, standard error, and p-value) for the BB term in the model.
+```{r}
+get_slope <- function(data) {
+  fit <- lm(R ~ BB, data = data)
+  sum.fit <- summary(fit)
+
+  data.frame(slope = sum.fit$coefficients[2, "Estimate"], 
+             se = sum.fit$coefficients[2, "Std. Error"],
+             pvalue = sum.fit$coefficients[2, "Pr(>|t|)"])
+}
+
+dat %>% 
+  group_by(HR) %>% 
+  do(get_slope(.))
+```
+
+### Exercise: 
+Investigate if the relationship between home runs and runs per game chnages by baseball league.
+```{r}
+dat <- Teams %>% filter(yearID %in% 1961:2001) %>%
+  mutate(HR = HR/G,
+         R = R/G) %>%
+  select(lgID, HR, BB, R) 
+
+dat %>% 
+  group_by(lgID) %>% 
+  do(tidy(lm(R ~ HR, data = .), conf.int = T)) %>% 
+  filter(term == "HR") %>%   #gives us the slope
+  select(lgID,estimate,conf.low,conf.high) %>%
+  ggplot(aes(lgID,y=estimate,ymin=conf.low,ymax=conf.high)) +
+   geom_errorbar() +
+  geom_point()
+
+```
+
+### Exercise: Tibbles, do, and broom for height data
+We want to incestigate the parent-child relationships. The Galton dataset is a sample of one male and one female child from each family in the GaltonFamilies dataset.
+
+```{r}
+library(tidyverse)
+library(HistData)
+set.seed(1, sample.kind = "Rounding") 
+
+galton <- GaltonFamilies %>%
+    group_by(family, gender) %>%
+    sample_n(1) %>%
+    ungroup() %>% 
+    gather(parent, parentHeight, father:mother) %>%
+    mutate(child = ifelse(gender == "female", "daughter", "son")) %>%
+    unite(pair, c("parent", "child"))
+
+head(galton)
+```
+```{r}
+## group by pair and summarizing the observation base don the group
+galton %>%
+  group_by(pair) %>%
+  summarize(n())
+```
+```{r}
+## calculating the correlation coef. for fathers and daughters, fathers and sons, mothers and daughters and mothers and sons
+galton %>%
+  group_by(pair) %>%
+  summarize(corr=cor(childHeight,parentHeight))
+```
+```{r}
+## For each parent-child pair type, fit regression lines. calculate the least squares estimates, standard errors, confidence intervals and p-values for the parentHeight coefficient for each pair
+library(broom)
+
+## the different statistics
+galton %>%
+  group_by(pair) %>%
+  do(tidy(lm(childHeight~parentHeight, data=.),conf.int=TRUE))
+```
+```{r}
+## for every inch increase in mother's height, how many son's height will increase?
+galton %>%
+  group_by(pair) %>%
+  do(tidy(lm(childHeight~parentHeight, data=.),conf.int=TRUE)) %>% filter(pair=="mother_son"& term=="parentHeight") %>% 
+  .$estimate
+```
+```{r}
+## Which sets of parent-child heights are significantly correlated at a p-value cut off of .05?
+galton %>%
+  group_by(pair) %>%
+  do(tidy(lm(childHeight~parentHeight, data=.),conf.int=TRUE)) %>% select(pair,p.value) %>% filter(p.value<0.05)
+
+# all the parent-child heights are correlated with a p-value of less than 0.05.
+```
+```{r}
+## confidenct intervals
+galton %>%
+  group_by(pair) %>%
+  do(tidy(lm(childHeight~parentHeight, data=.),conf.int=TRUE)) %>% filter(term=="parentHeight") %>%
+  select(pair,estimate,conf.low,conf.high) %>%
+  ggplot(aes(pair,y=estimate,ymin=conf.low,ymax=conf.high)) +
+  geom_errorbar() +
+  geom_point()
+# since the confidence intervals overlap, the data are consistent with inheritance of height being independent of the child's or the parent's gender.
+```
+
