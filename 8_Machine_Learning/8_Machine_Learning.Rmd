@@ -689,3 +689,831 @@ summarize(y = mean(y), x = mean(x)) %>%
 	qplot(x, y, data =.)
 ```
 
+# Section 3: Linear Regression for Prediction, Smoothing, and Working with Matrices 
+
+## Key points:Linear Regression for Prediction:
+Linear regression can be considered a machine learning algorithm. Although it can be too rigid to be useful, it works rather well for some challenges. It also serves as a baseline approach: if you can’t beat it with a more complex approach, you probably want to stick to linear regression. 
+```{r}
+## Building a ML algorithm that predict son's height Y, using father's height X. 
+library(HistData)
+set.seed(1983)
+galton_heights <- GaltonFamilies %>%
+  filter(gender == "male") %>%
+  group_by(family) %>%
+  sample_n(1) %>%
+  ungroup() %>%
+  select(father, childHeight) %>%
+  rename(son = childHeight)
+
+y <- galton_heights$son
+test_index <- createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+train_set <- galton_heights %>% slice(-test_index)
+test_set <- galton_heights %>% slice(test_index)
+
+m <- mean(train_set$son)
+# squared loss
+mean((m - test_set$son)^2)
+
+# fit linear regression model
+fit <- lm(son ~ father, data = train_set)
+fit$coef
+y_hat <- fit$coef[1] + fit$coef[2]*test_set$father
+mean((y_hat - test_set$son)^2)
+```
+## Key points: predict function
+The predict() function takes a fitted object from functions such as lm() or glm() and a data frame with the new predictors for which to predict. We can use predict like this:
+```{r}
+y_hat <- predict(fit, test_set)
+```
+
+predict() is a generic function in R that calls other functions depending on what kind of object it receives. To learn about the specifics, you can read the help files using code like this: 
+```{r}
+?predict.lm    # or ?predict.glm
+```
+
+```{r}
+y_hat <- predict(fit, test_set)
+mean((y_hat - test_set$son)^2)
+
+# read help files
+?predict.lm
+?predict.glm
+```
+
+## Exercise:
+Create a dataset scuh:
+```{r}
+set.seed(1, sample.kind="Rounding") 
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+      data.frame() %>% setNames(c("x", "y"))
+```
+
+We will build 100 linear models using the data above and calculate the mean and standard deviation of the combined models. - First, set the seed to 1 again. 
+- Then, within a replicate() loop, 
+(1) partition the dataset into test and training sets with p=0.5 and using dat$y to generate your indices, 
+(2) train a linear model predicting y from x, 
+(3) generate predictions on the test set, and 
+(4) calculate the RMSE of that model. 
+Then, report the mean and standard deviation (SD) of the RMSEs from all 100 models.
+```{r}
+## 100 lm fit (Elham)
+set.seed(1, sample.kind="Rounding") 
+RMSE<-replicate(100,{
+ test_index <- createDataPartition(dat$y, times=1, p=0.5, list=FALSE)
+train_set <- dat[-test_index,]
+test_set <- dat[test_index,]
+
+fit <- lm(y ~ x, data = train_set)
+
+y_hat <- predict(fit, test_set)
+sqrt(mean((y_hat - test_set$y)^2)) 
+})
+
+mean(RMSE)
+sd(RMSE)
+```
+```{r}
+## Edex
+set.seed(1, sample.kind="Rounding") 
+rmse <- replicate(100, {
+	test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+	train_set <- dat %>% slice(-test_index)
+	test_set <- dat %>% slice(test_index)
+	fit <- lm(y ~ x, data = train_set)
+ 	y_hat <- predict(fit, newdata = test_set)
+	sqrt(mean((y_hat-test_set$y)^2))
+})
+
+mean(rmse)
+sd(rmse)
+```
+
+## Exercise2:
+Write a function that takes a size n, then 
+(1) builds a dataset using the code provided at the top of Q1 but with n observations instead of 100 and without the set.seed(1), (2) runs the replicate() loop that you wrote to answer Q1, which builds 100 linear models and returns a vector of RMSEs, and 
+(3) calculates the mean and standard deviation of the 100 RMSEs.
+```{r}
+set.seed(1, sample.kind="Rounding") 
+func <- function(n){
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n, c(69, 69), Sigma) %>%
+data.frame() %>% setNames(c("x", "y"))
+rmse <- replicate(100, {
+	test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+	train_set <- dat %>% slice(-test_index)
+	test_set <- dat %>% slice(test_index)
+	fit <- lm(y ~ x, data = train_set)
+ 	y_hat <- predict(fit, newdata = test_set)
+	sqrt(mean((y_hat-test_set$y)^2))
+})
+c(avg=mean(rmse),sd=sd(rmse))
+}
+
+
+n <- c(100, 500, 1000, 5000, 10000)
+sapply(n,func)
+```
+Result: On average, the RMSE does not change much as n gets larger, but the variability of the RMSE decreases.
+
+## Exercise 3:
+Now repeat the exercise from Q1, this time making the correlation between x and y larger, as in the following code:
+```{r}
+set.seed(1, sample.kind = "Rounding")
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.95, 0.95, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+data.frame() %>% setNames(c("x", "y"))
+
+## Edex
+set.seed(1, sample.kind="Rounding") 
+rmse <- replicate(100, {
+	test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+	train_set <- dat %>% slice(-test_index)
+	test_set <- dat %>% slice(test_index)
+	fit <- lm(y ~ x, data = train_set)
+ 	y_hat <- predict(fit, newdata = test_set)
+	sqrt(mean((y_hat-test_set$y)^2))
+})
+
+mean(rmse)
+sd(rmse)
+```
+Result: When we increase the correlation between x and y, x has more predictive power and thus provides a better estimate of y.
+
+## Exercise 4:
+Use the below dataset
+- Note that y is correlated with both x_1 and x_2 but the two predictors are independent of each other, as seen by cor(dat).
+
+- Set the seed to 1, then use the caret package to partition into a test and training set of equal size. Compare the RMSE when using just x_1, just x_2 and both x_1 and x_2. Train a single linear model for each (not 100 like in the previous questions).
+
+Which of the three models performs the best (has the lowest RMSE)?
+
+```{r}
+set.seed(1)
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.25, 0.75, 0.25, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+cor(dat$x_1,dat$x_2)
+cor(dat)
+```
+```{r}
+# Only x_1
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_1, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_1 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_1
+```
+```{r}
+# Only x_2
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_2 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_2
+```
+```{r}
+# Only x_1, x_2
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_1+x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_2 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_2
+```
+## Exercise 5:
+Repeat the exercise from Q6 but now create an example in which x_1 and x_2 are highly correlated.
+```{r}
+set.seed(1)
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.95, 0.75, 0.95, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+```
+```{r}
+# Only x_1
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_1, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_1 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_1
+```
+```{r}
+# Only x_2
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_2 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_2
+```
+```{r}
+# Only x_1, x_2
+set.seed(1, sample.kind="Rounding") 
+test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+train_set <- dat %>% slice(-test_index)
+test_set <- dat %>% slice(test_index)
+fit <- lm(y ~ x_1+x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+rmse_2 <- sqrt(mean((y_hat-test_set$y)^2))
+rmse_2
+```
+Result: Adding extra predictors can improve RMSE substantially, but not when the added predictors are highly correlated with other predictors.
+
+## Key points: Regression for a Categorical Outcome
+The regression approach can be extended to categorical data. For example, we can try regression to estimate the conditional probability:
+$p(x)=Pr(Y=1|X=x)=\beta_0+\beta_1x$
+Once we have estimates $\beta_0$  and $\beta_1$, we can obtain an actual prediction p(x). Then we can define a specific decision rule to form a prediction.
+
+Example: what is the conditional probability of being female if you are 66 inches?
+```{r}
+library(dslabs)
+data("heights")
+y <- heights$height
+
+set.seed(2, sample.kind = "Rounding") 
+
+test_index <- createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+train_set <- heights %>% slice(-test_index)
+test_set <- heights %>% slice(test_index)
+
+train_set %>% 
+  filter(round(height)==66) %>%
+  summarize(y_hat = mean(sex=="Female"))
+```
+```{r}
+heights %>% 
+  mutate(x = round(height)) %>%
+  group_by(x) %>%
+  filter(n() >= 10) %>%
+  summarize(prop = mean(sex == "Female")) %>%
+  ggplot(aes(x, prop)) +
+  geom_point()
+```
+```{r}
+lm_fit <- mutate(train_set, y = as.numeric(sex == "Female")) %>% lm(y ~ height, data = .)
+
+#predict female if p_hat>0.5
+p_hat <- predict(lm_fit, test_set)
+y_hat <- ifelse(p_hat > 0.5, "Female", "Male") %>% factor()
+confusionMatrix(y_hat, test_set$sex)$overall["Accuracy"]
+```
+
+## Key point: Logistic Regression
+- logistic regression is an extension of linear regression that assures that the estimate of conditional probability Pr(Y=1|X=x)  is between 0 and 1. 
+
+This approach makes use of the logistic transformation: 
+$g(p)=log{\frac{p}{1-p}}$ With logistic regression, we model the conditional probability directly with:
+$g\{Pr(Y=1|X=x)\}=\beta_0+\beta_1x$
+
+- Note that with this model, we can no longer use least squares. Instead we compute the maximum likelihood estimate (MLE). 
+
+In R, we can fit the logistic regression model with the function glm() (generalized linear models). If we want to compute the conditional probabilities, we want type="response" since the default is to return the logistic transformed values.
+```{r}
+heights %>% 
+  mutate(x = round(height)) %>%
+  group_by(x) %>%
+  filter(n() >= 10) %>%
+  summarize(prop = mean(sex == "Female")) %>%
+  ggplot(aes(x, prop)) +
+  geom_point() + 
+  geom_abline(intercept = lm_fit$coef[1], slope = lm_fit$coef[2])
+range(p_hat)
+
+# fit logistic regression model
+glm_fit <- train_set %>% 
+  mutate(y = as.numeric(sex == "Female")) %>%
+  glm(y ~ height, data=., family = "binomial")
+
+p_hat_logit <- predict(glm_fit, newdata = test_set, type = "response")
+
+y_hat_logit <- ifelse(p_hat_logit > 0.5, "Female", "Male") %>% factor
+
+confusionMatrix(y_hat_logit, test_set$sex)$overall[["Accuracy"]]
+```
+## Key points: Case Study: 2 or 7
+In this case study we apply logistic regression to classify whether a digit is two or seven. We are interested in estimating a conditional probability that depends on two variables:
+
+$g\{p(x_1,x_2)\}=g\{Pr(Y=1|X_1=x_1,X_2=x_2)\}=\beta_0+\beta_1x_1+\beta_2x_2$
+
+Through this case, we know that logistic regression forces our estimates to be a plane and our boundary to be a line. This implies that a logistic regression approach has no chance of capturing the non-linear nature of the true  p(x1,x2) . Therefore, we need other more flexible methods that permit other shapes.
+
+```{r}
+mnist <- read_mnist()
+is <- mnist_27$index_train[c(which.min(mnist_27$train$x_1), which.max(mnist_27$train$x_1))]
+titles <- c("smallest","largest")
+tmp <- lapply(1:2, function(i){
+    expand.grid(Row=1:28, Column=1:28) %>%
+        mutate(label=titles[i],
+               value = mnist$train$images[is[i],])
+})
+
+tmp <- Reduce(rbind, tmp)
+tmp %>% ggplot(aes(Row, Column, fill=value)) +
+    geom_raster() +
+    scale_y_reverse() +
+    scale_fill_gradient(low="white", high="black") +
+    facet_grid(.~label) +
+    geom_vline(xintercept = 14.5) +
+    geom_hline(yintercept = 14.5)
+```
+```{r}
+#7: representive of upper left pannes
+#2: representative of the lower right panel
+data("mnist_27")
+mnist_27$train %>% ggplot(aes(x_1, x_2, color = y)) + geom_point()
+```
+```{r}
+## why the problem is challenging:
+is <- mnist_27$index_train[c(which.min(mnist_27$train$x_2), which.max(mnist_27$train$x_2))]
+titles <- c("smallest","largest")
+tmp <- lapply(1:2, function(i){
+    expand.grid(Row=1:28, Column=1:28) %>%
+        mutate(label=titles[i],
+               value = mnist$train$images[is[i],])
+})
+tmp <- Reduce(rbind, tmp)
+tmp %>% ggplot(aes(Row, Column, fill=value)) +
+    geom_raster() +
+    scale_y_reverse() +
+    scale_fill_gradient(low="white", high="black") +
+    facet_grid(.~label) +
+    geom_vline(xintercept = 14.5) +
+    geom_hline(yintercept = 14.5)
+```
+```{r}
+## writing the ML algorithm and accuracy with glm:
+fit_glm <- glm(y ~ x_1 + x_2, data=mnist_27$train, family = "binomial")
+p_hat_glm <- predict(fit_glm, mnist_27$test)
+y_hat_glm <- factor(ifelse(p_hat_glm > 0.5, 7, 2))
+confusionMatrix(data = y_hat_glm, reference = mnist_27$test$y)$overall["Accuracy"]
+```
+```{r}
+## True conditional probability:
+mnist_27$true_p %>% ggplot(aes(x_1, x_2, fill=p)) +
+    geom_raster()
+```
+```{r}
+## changing the color and suing curve!
+mnist_27$true_p %>% ggplot(aes(x_1, x_2, z=p, fill=p)) +
+    geom_raster() +
+    scale_fill_gradientn(colors=c("#F8766D","white","#00BFC4")) +
+    stat_contour(breaks=c(0.5), color="black")
+```
+```{r}
+##compute the boundary that divides the values of x1 and x2 that make the estimated conditional probably lower than 0.5 and larger than 0.5, So at this boundary, the conditional probability is going to be equal to 0.5.:
+p_hat <- predict(fit_glm, newdata = mnist_27$true_p)
+mnist_27$true_p %>%
+    mutate(p_hat = p_hat) %>%
+    ggplot(aes(x_1, x_2,  z=p_hat, fill=p_hat)) +
+    geom_raster() +
+    scale_fill_gradientn(colors=c("#F8766D","white","#00BFC4")) +
+    stat_contour(breaks=c(0.5),color="black")
+```
+boundary can't be anything other than a straight line, which
+implies that our logistic regression approach has no chance of capturing the non-linear nature of our true conditional probability. Boundary of true conditional probability is the curve!
+```{r}
+p_hat <- predict(fit_glm, newdata = mnist_27$true_p)
+mnist_27$true_p %>%
+    mutate(p_hat = p_hat) %>%
+    ggplot() +
+    stat_contour(aes(x_1, x_2, z=p_hat), breaks=c(0.5), color="black") +
+    geom_point(mapping = aes(x_1, x_2, color=y), data = mnist_27$test)
+```
+
+The error comes from:
+Because logistic regression divides the sevens and the twos with a line, we will miss several points that can't be captured by this shape. So we need something more flexible.
+
+## Exercise: Logistic Regression
+```{r}
+## Defining the following dataset:
+set.seed(2, sample.kind="Rounding")  
+make_data <- function(n = 1000, p = 0.5, 
+				mu_0 = 0, mu_1 = 2, 
+				sigma_0 = 1,  sigma_1 = 1){
+
+y <- rbinom(n, 1, p)
+f_0 <- rnorm(n, mu_0, sigma_0)
+f_1 <- rnorm(n, mu_1, sigma_1)
+x <- ifelse(y == 1, f_1, f_0)
+  
+test_index <- createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+
+list(train = data.frame(x = x, y = as.factor(y)) %>% slice(-test_index),test = data.frame(x = x, y = as.factor(y)) %>% slice(test_index))
+}
+dat <- make_data()
+```
+Note that we have defined a variable x that is predictive of a binary outcome y:
+```{r}
+dat$train %>% ggplot(aes(x, color = y)) + geom_density()
+```
+- Set the seed to 1
+- then use the make_data() function defined above to generate 25 different datasets with mu_1 <- seq(0, 3, len=25). 
+- Perform logistic regression on each of the 25 different datasets (predict 1 if p>0.5) and plot accuracy (res in the figures) vs mu_1 (delta in the figures).”
+Which is the correct plot?
+```{r}
+set.seed(1, sample.kind="Rounding") 
+delta <- seq(0, 3, len = 25)
+res <- sapply(delta, function(d){
+	dat <- make_data(mu_1 = d)
+	fit_glm <- dat$train %>% glm(y ~ x, family = "binomial", data = .)
+	y_hat_glm <- ifelse(predict(fit_glm, dat$test) > 0.5, 1, 0) %>% factor(levels = c(0, 1))
+	mean(y_hat_glm == dat$test$y)
+})
+qplot(delta, res)
+```
+
+## Key Points: Introduction to Smoothing: (Low band pass fitting, curve fitting)
+Smoothing is a very powerful technique used all across data analysis. It is designed to detect trends in the presence of noisy data in cases in which the shape of the trend is unknown. 
+The concepts behind smoothing techniques are extremely useful in machine learning because conditional expectations/probabilities can be thought of as trends of unknown shapes that we need to estimate in the presence of uncertainty.
+
+```{r}
+## the difference between Obama and Macain election
+data("polls_2008")
+qplot(day, margin, data = polls_2008)
+```
+
+##Key points: Bin Smoothing and Kernel
+- The general idea of smoothing is to group data points into strata in which the value of  f(x)  can be assumed to be constant. We can make this assumption because we think  f(x)  changes slowly and, as a result,  f(x)  is almost constant in small windows of time. For the example of election, we assumed that public opinion stay constant during the week. 
+
+- This assumption implies that a good estimate for f(x) is the average of the $Y_i$  values in the window. The estimate is:
+$\hat{f}(x_0)=\frac{1}{N_0}\sum_{i\in A_0}{Y_i}$
+
+In smoothing, we call the size of the interval  $|x−x_0|$  satisfying the particular condition the window size, bandwidth or span.
+```{r}
+# bin smoothers
+span <- 7 
+fit <- with(polls_2008,ksmooth(day, margin, x.points = day, kernel="box", bandwidth =span))
+polls_2008 %>% mutate(smooth = fit$y) %>%
+    ggplot(aes(day, margin)) +
+    geom_point(size = 3, alpha = .5, color = "grey") + 
+    geom_line(aes(day, smooth), color="red")
+```
+```{r}
+# kernel
+span <- 7
+fit <- with(polls_2008, ksmooth(day, margin,  x.points = day, kernel="normal", bandwidth = span))
+polls_2008 %>% mutate(smooth = fit$y) %>%
+  ggplot(aes(day, margin)) +
+  geom_point(size = 3, alpha = .5, color = "grey") + 
+  geom_line(aes(day, smooth), color="red")
+```
+
+##Key points: Local Weighted Regression (loess)
+A limitation of the bin smoothing approach is that we need small windows for the approximately constant assumptions to hold which may lead to imprecise estimates of  f(x) . Local weighted regression (loess) permits us to consider larger window sizes.
+
+One important difference between loess and bin smoother is that we assume the smooth function is locally linear in a window instead of constant.
+
+The result of loess is a smoother fit than bin smoothing because we use larger sample sizes to estimate our local parameters.
+
+I personally prefer degree equals 1 as it is less prone to this kind of noise.
+
+```{r}
+total_days <- diff(range(polls_2008$day))
+span <- 21/total_days
+
+fit <- loess(margin~day, degree=1, span=span, data=polls_2008)
+
+polls_2008 %>% mutate(smooth=fit$fitted) %>% 
+  ggplot(aes(day, margin)) +
+  geom_point(size=3, alpha=0.5, color="grey") + 
+  geom_line(aes(day,smooth),color="red")
+
+```
+```{r}
+## the ggplot does have smoothing for default
+polls_2008 %>% ggplot(aes(day, margin)) +
+  geom_point() + 
+  geom_smooth()
+```
+But be careful with the default table, as they are rarely optimal.
+
+```{r}
+polls_2008 %>% 
+  ggplot(aes(day, margin)) +
+  geom_point() + 
+  geom_smooth(color="red",span=0.15,method.args=list(degree=1))
+```
+
+## Exercise: Smoothing
+mortality counts for Puerto Rico for 2015-2018:
+```{r}
+library(tidyverse)
+library(lubridate)
+library(purrr)
+library(pdftools)
+    
+fn <- system.file("extdata", "RD-Mortality-Report_2015-18-180531.pdf", package="dslabs")
+dat <- map_df(str_split(pdf_text(fn), "\n"), function(s){
+	s <- str_trim(s)
+	header_index <- str_which(s, "2015")[1]
+	tmp <- str_split(s[header_index], "\\s+", simplify = TRUE)
+	month <- tmp[1]
+	header <- tmp[-1]
+	tail_index  <- str_which(s, "Total")
+	n <- str_count(s, "\\d+")
+	out <- c(1:header_index, which(n==1), which(n>=28), tail_index:length(s))
+	s[-out] %>%
+		str_remove_all("[^\\d\\s]") %>%
+		str_trim() %>%
+		str_split_fixed("\\s+", n = 6) %>%
+		.[,1:5] %>%
+		as_data_frame() %>% 
+		setNames(c("day", header)) %>%
+		mutate(month = month,
+			day = as.numeric(day)) %>%
+		gather(year, deaths, -c(day, month)) %>%
+		mutate(deaths = as.numeric(deaths))
+}) %>%
+	mutate(month = recode(month, "JAN" = 1, "FEB" = 2, "MAR" = 3, "APR" = 4, "MAY" = 5, "JUN" = 6, 
+                          "JUL" = 7, "AGO" = 8, "SEP" = 9, "OCT" = 10, "NOV" = 11, "DEC" = 12)) %>%
+	mutate(date = make_date(year, month, day)) %>%
+        filter(date <= "2018-05-01")
+```
+
+Use the loess() function to obtain a smooth estimate of the expected number of deaths as a function of date. Plot this resulting smooth function. Make the span about two months long.
+
+```{r}
+span <- 60 / as.numeric(diff(range(dat$date)))
+
+fit <- dat %>% mutate(x = as.numeric(date)) %>% loess(deaths ~ x, data = ., span = span, degree = 1)
+
+dat %>% mutate(smooth = predict(fit, as.numeric(date))) %>%
+	ggplot() +
+	geom_point(aes(date, deaths)) +
+	geom_line(aes(date, smooth), lwd = 2, col = "red")
+```
+with different colors for each year:
+```{r}
+dat %>% 
+    mutate(smooth = predict(fit, as.numeric(date)), day = yday(date), year = as.character(year(date))) %>%
+    ggplot(aes(day, smooth, col = year)) +
+    geom_line(lwd = 2)
+```
+Suppose we want to predict 2s and 7s in the mnist_27 dataset with just the second covariate. Can we do this? On first inspection it appears the data does not have much predictive power. In fact, if we fit a regular logistic regression the coefficient for x_2 is not significant!
+
+This can be seen using this code:
+```{r}
+library(broom)
+library(dslabs)
+data(mnist_27)
+mnist_27$train %>% glm(y ~ x_2, family = "binomial", data = .) %>% tidy()
+```
+Plotting a scatterplot here is not useful since y is binary:
+```{r}
+qplot(x_2, y, data = mnist_27$train)
+```
+```{r}
+## Note that there is indeed predictive power, but that the conditional probability is non-linear.
+#The loess line can be plotted using the following code:
+
+mnist_27$train %>% 
+	mutate(y = ifelse(y=="7", 1, 0)) %>%
+	ggplot(aes(x_2, y)) + 
+	geom_smooth(method = "loess")
+```
+
+## Key Points:
+- The main reason for using matrices is that certain mathematical operations needed to develop efficient code can be performed using techniques from a branch of mathematics called linear algebra.
+
+- Linear algebra and matrix notation are key elements of the language used in academic papers describing machine learning techniques. 
+```{r}
+library(tidyverse)
+library(dslabs)
+if(!exists("mnist")) mnist <- read_mnist()
+
+class(mnist$train$images)
+
+x <- mnist$train$images[1:1000,] # to make it a little smaller
+y <- mnist$train$labels[1:1000]
+```
+## Key points: Matrix
+In matrix algebra, we have three main types of objects: scalars, vectors, and matrices.
+
+scalar: $\alpha=1$
+Vector: $X1$
+Matrix: $X=[X_1X_2]$
+
+- In R, we can extract the dimension of a matrix with the function dim().
+- We can convert a vector into a matrix using the function as.matrix().
+```{r}
+length(x[,1])
+x_1 <- 1:5
+x_2 <- 6:10
+cbind(x_1, x_2)
+dim(x)
+dim(x_1)
+dim(as.matrix(x_1))
+dim(x)
+```
+
+## Key points: Converting a Vector to a Matrix
+In R, we can convert a vector into a matrix with the matrix() function. The matrix is filled in by column, but we can fill by row by using the byrow argument. The function t() can be used to directly transpose a matrix. 
+
+Note that the matrix function recycles values in the vector without warning if the product of columns and rows does not match the length of the vector. 
+
+```{r}
+my_vector <- 1:15
+
+# fill the matrix by column
+mat <- matrix(my_vector, 5, 3)
+mat
+
+# fill by row
+mat_t <- matrix(my_vector, 3, 5, byrow = TRUE)
+mat_t
+identical(t(mat), mat_t)
+matrix(my_vector, 5, 5)
+grid <- matrix(x[3,], 28, 28)
+image(1:28, 1:28, grid)
+
+# flip the image back
+image(1:28, 1:28, grid[, 28:1])
+```
+## Key points: Row and Column Summaries and Apply
+- The function rowSums() computes the sum of each row.
+
+- The function rowMeans() computes the average of each row.
+
+- We can compute the column sums and averages using the functions colSums() and colMeans().
+
+- The matrixStats package adds functions that performs operations on each row or column very efficiently, including the functions rowSds() and colSds().
+
+- The apply() function lets you apply any function to a matrix. The first argument is the matrix, the second is the dimension (1 for rows, 2 for columns), and the third is the function. 
+
+```{r}
+sums <- rowSums(x)
+avg <- rowMeans(x)
+
+data_frame(labels = as.factor(y), row_averages = avg) %>%
+    qplot(labels, row_averages, data = ., geom = "boxplot")
+
+avgs <- apply(x, 1, mean) #similar to sapply but on matrix
+sds <- apply(x, 2, sd)
+```
+
+## Key points: Filtering Columns Based on Summaries
+- The operations used to extract columns: x[,c(351,352)].
+
+- The operations used to extract rows: x[c(2,3),].
+
+- We can also use logical indexes to determine which columns or rows to keep:  new_x <- x[ ,colSds(x) > 60].
+
+- Important note: if you select only one column or only one row, the result is no longer a matrix but a vector. We can preserve the matrix class by using the argument drop=FALSE. 
+
+```{r}
+library(matrixStats)
+
+#some pixels does not chnage very much!
+sds <- colSds(x)
+qplot(sds, bins = "30", color = I("black"))
+image(1:28, 1:28, matrix(sds, 28, 28)[, 28:1])
+```
+```{r}
+#extract columns and rows
+x[ ,c(351,352)]
+x[c(2,3),]
+new_x <- x[ ,colSds(x) > 60]
+dim(new_x)
+class(x[,1])
+dim(x[1,])
+```
+```{r}
+#preserve the matrix class
+class(x[ , 1, drop=FALSE])
+dim(x[, 1, drop=FALSE])
+```
+## Key points: Indexing with Matrices and Binarizing the Data
+We can use logical operations with matrices:
+```{r}
+mat <- matrix(1:15, 5, 3)
+mat[mat > 6 & mat < 12] <- 0
+```
+
+We can also binarize the data using just matrix operations:
+```{r}
+bin_x <- x
+bin_x[bin_x < 255/2] <- 0 
+bin_x[bin_x > 255/2] <- 1
+```
+```{r}
+#index with matrices
+mat <- matrix(1:15, 5, 3)
+as.vector(mat)
+qplot(as.vector(x), bins = 30, color = I("black"))
+new_x <- x
+new_x[new_x < 50] <- 0
+
+mat <- matrix(1:15, 5, 3)
+mat[mat < 3] <- 0
+mat
+
+mat <- matrix(1:15, 5, 3)
+mat[mat > 6 & mat < 12] <- 0
+mat
+```
+```{r}
+#binarize the data
+bin_x <- x
+bin_x[bin_x < 255/2] <- 0
+bin_x[bin_x > 255/2] <- 1
+bin_X <- (x > 255/2)*1
+```
+
+## Key points: Vectorization for Matrices and Matrix Algebra Operations
+We can scale each row of a matrix using this line of code:
+```{r}
+(x - rowMeans(x)) / rowSds(x)
+```
+To scale each column of a matrix, we use this code:
+```{r}
+t(t(X) - colMeans(X))
+```
+We can also use a function called sweep() that works similarly to apply(). It takes each entry of a vector and subtracts it from the corresponding row or column:
+```{r}
+X_mean_0 <- sweep(x, 2, colMeans(x))
+```
+
+Matrix multiplication: t(x) %*% x
+The cross product: crossprod(x)
+The inverse of a function: solve(crossprod(x))
+The QR decomposition: qr(x)
+
+```{r}
+#scale each row of a matrix
+(x - rowMeans(x)) / rowSds(x)
+```
+```{r}
+#scale each column
+t(t(x) - colMeans(x))
+```
+```{r}
+#take each entry of a vector and subtracts it from the corresponding row or column
+x_mean_0 <- sweep(x, 2, colMeans(x))
+```
+```{r}
+#divide by the standard deviation
+x_mean_0 <- sweep(x, 2, colMeans(x))
+x_standardized <- sweep(x_mean_0, 2, colSds(x), FUN = "/")
+```
+
+## Exercise:
+```{r}
+x <- matrix(rnorm(100*10), 100, 10)
+
+#dimension of rows
+dim(x)
+
+# number of rows
+nrow(x)
+length(x[,1])
+dim(x)[1]
+
+#number of columns
+ncol(x)
+length(x[1,])
+dim(x)[2]
+```
+```{r}
+# adding the scalar 1 to row 1, the scalar 2 to row 2, and so on, for the matrix x?
+x1 <- x + seq(nrow(x))
+x2 <- sweep(x, 1, 1:nrow(x),"+")
+```
+```{r}
+#adding the scalar 1 to column 1, the scalar 2 to column 2, and so on, for the matrix x
+x <- sweep(x, 2, 1:ncol(x), FUN = "+")
+```
+```{r}
+# average of each row of x and each column of x:
+rowMeans(x)
+colMeans(x)
+```
+## Exercise 2:
+For each observation in the mnist training data, compute the proportion of pixels that are in the grey area, defined as values between 50 and 205 (but not including 50 and 205). (To visualize this, you can make a boxplot by digit class.)
+
+What proportion of the 60000*784 pixels in the mnist training data are in the grey area overall, defined as values between 50 and 205?
+
+```{r}
+# The matrix and plot can be calculated using the following code:
+mnist <- read_mnist()
+y <- rowMeans(mnist$train$images>50 & mnist$train$images<205)
+qplot(as.factor(mnist$train$labels), y, geom = "boxplot")
+
+#the proportion
+mean(y)
+```
+
